@@ -1,0 +1,27 @@
+{
+  "name": "ohmypi-svelte",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": { "omp-workspace": "launch.mjs" },
+  "scripts": {
+    "launch": "node launch.mjs",
+    "shortcuts": "node scripts/create-shortcuts.mjs",
+    "dev": "node server.mjs --dev",
+    "build": "vite build",
+    "start": "node server.mjs",
+    "check": "svelte-check --fail-on-warnings",
+    "test": "node --test tests/*.test.mjs"
+  },
+  "engines": { "node": ">=22.12" },
+  "dependencies": { "dompurify": "3.4.17", "marked": "18.1.2" },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "7.3.1",
+    "@tailwindcss/vite": "4.3.3",
+    "daisyui": "5.7.50",
+    "svelte": "5.57.3",
+    "svelte-check": "4.7.7",
+    "tailwindcss": "4.3.3",
+    "vite": "8.3.5"
+  }
+}
