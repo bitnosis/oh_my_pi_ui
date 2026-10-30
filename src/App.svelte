@@ -1,8 +1,10 @@
 <script>
   import { onMount, tick } from "svelte";
+  import {installModalFocus} from './lib/modal-focus.js';
   import ThemePicker from "./components/ThemePicker.svelte";
   import ChatSpacing from "./components/ChatSpacing.svelte";
   import Logo from "./components/Logo.svelte";
+  import HomeLogoBackground from './components/HomeLogoBackground.svelte';
   import Message from "./components/Message.svelte";
   import ContextUsage from "./components/ContextUsage.svelte";
   import CostBreakdown from "./components/CostBreakdown.svelte";
@@ -78,6 +80,7 @@
   const ready = $derived(Boolean(w.active?.ready && !w.active?.closed));
   onMount(() => {
     let disposed = false;
+    const removeModalFocus=installModalFocus();
     const unsubscribe = window.desktopMenu?.onAction(menuAction);
     initialize().then(() => {
       if (disposed) closeWorkspace();
@@ -85,6 +88,7 @@
     return () => {
       disposed = true;
       unsubscribe?.();
+      removeModalFocus();
       closeWorkspace();
     };
   });
@@ -438,6 +442,7 @@
     </div>
   </aside>
   <main class="workspace-main flex min-h-0 min-w-0 flex-col">
+    <HomeLogoBackground/>
     <header class="workspace-header">
       <div class="min-w-0 flex-1">
         {#if renaming}<form

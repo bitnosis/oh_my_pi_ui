@@ -57,8 +57,9 @@ export function setShowThemeBackgrounds(enabled) {
 function applyThemeBackground(name) {
   const root = document.documentElement;
   const background = showThemeBackgrounds ? themeBackground(name) : null;
-  const tinted = Boolean(background?.tint || background?.gradient);
-  root.style.setProperty('--theme-bg-image', background?.gradient || (background && !tinted ? `url("${background.image}")` : 'none'));
+  const tinted = Boolean(background?.tint);
+  root.style.setProperty('--theme-pi-display',background?.gradient?'block':'none');
+  root.style.setProperty('--theme-bg-image', background && !tinted && !background.gradient ? `url("${background.image}")` : 'none');
   root.style.setProperty('--theme-bg-mask', tinted ? `url("${background.image}")` : 'none');
   root.style.setProperty('--theme-bg-tint', background?.tint || 'transparent');
   root.style.setProperty('--theme-bg-filter', background?.tint ? 'drop-shadow(0 0 18px var(--color-primary)) drop-shadow(0 0 36px var(--color-primary))' : 'none');
