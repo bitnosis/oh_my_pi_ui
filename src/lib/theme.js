@@ -1,27 +1,68 @@
 export const defaultColor = '#be3c4f';
-export const defaultBackgroundOpacity = 0.7;
+export const defaultBackgroundOpacity = 0.2;
 export const builtInThemes = ['light','dark','cupcake','bumblebee','emerald','corporate','synthwave','retro','cyberpunk','valentine','halloween','garden','forest','aqua','lofi','pastel','fantasy','wireframe','black','luxury','dracula','cmyk','autumn','business','acid','lemonade','night','coffee','winter','dim','nord','sunset','caramellatte','abyss','silk'];
 
-/** Main-area art keyed by built-in theme. Themes left out of this map stay plain. */
+/** Pick 'pi' or 'leaf'. Themes with their own picture still use that picture. */
+export const defaultChatBackgroundId = 'leaf';
+export const chatBackgroundChoices = {
+  leaf: {
+    image: '/backgrounds/logo-leaf.svg',
+    opacity: 0.1,
+    position: 'right 8% center',
+    size: 'auto 52%',
+    tint: 'var(--color-primary)',
+  },
+  pi: {
+    image: '/backgrounds/logo-pi.svg',
+    opacity: 0.25,
+    position: 'right 8% center',
+    size: 'auto 52%',
+  },
+};
+export const defaultChatBackground = chatBackgroundChoices[defaultChatBackgroundId];
+
+/** Main-area art keyed by built-in theme. Themes left out of this map use the chosen default. */
 export const themeBackgrounds = {
-  halloween: { image: '/backgrounds/halloween.jpg', opacity: 0.7 },
+  halloween: { image: '/backgrounds/halloween.png', opacity: 0.15 },
+  forest: { image: '/backgrounds/forest.png', opacity: 0.23 },
+  synthwave: { image: '/backgrounds/synthwave.png', opacity: 0.1 },
+  night: { image: '/backgrounds/night.png', opacity: 0.1 },
+  emerald: { image: '/backgrounds/emerald-crystals-light.png', opacity: 0.20 },
+  bumblebee: { image: '/backgrounds/bumblebee.png', opacity: 0.10 },
+  coffee: { image: '/backgrounds/coffee.png', opacity: 0.1, position: '67% center' },
+  abyss: { image: '/backgrounds/abyss.png', opacity: 0.1 },
 };
 
 export function themeBackground(name) {
-  const entry = themeBackgrounds[name];
+  const entry = themeBackgrounds[name] || defaultChatBackground;
   if (!entry?.image) return null;
   const opacity = Number(entry.opacity);
   return {
     image: entry.image,
     opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : defaultBackgroundOpacity,
+    ...(entry.position ? { position: entry.position } : {}),
+    ...(entry.size ? { size: entry.size } : {}),
+    ...(entry.tint ? { tint: entry.tint } : {}),
   };
+}
+
+let showThemeBackgrounds = true;
+
+export function setShowThemeBackgrounds(enabled) {
+  showThemeBackgrounds = enabled !== false;
 }
 
 function applyThemeBackground(name) {
   const root = document.documentElement;
-  const background = themeBackground(name);
-  root.style.setProperty('--theme-bg-image', background ? `url("${background.image}")` : 'none');
+  const background = showThemeBackgrounds ? themeBackground(name) : null;
+  const tinted = Boolean(background?.tint);
+  root.style.setProperty('--theme-bg-image', background && !tinted ? `url("${background.image}")` : 'none');
+  root.style.setProperty('--theme-bg-mask', tinted ? `url("${background.image}")` : 'none');
+  root.style.setProperty('--theme-bg-tint', tinted ? background.tint : 'transparent');
+  root.style.setProperty('--theme-bg-filter', tinted ? 'drop-shadow(0 0 18px var(--color-primary)) drop-shadow(0 0 36px var(--color-primary))' : 'none');
   root.style.setProperty('--theme-bg-opacity', background ? String(background.opacity) : '0');
+  root.style.setProperty('--theme-bg-position', background?.position || 'center right');
+  root.style.setProperty('--theme-bg-size', background?.size || 'cover');
 }
 
 export function themeVariables(hex, mode='dark') {

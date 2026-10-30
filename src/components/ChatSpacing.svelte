@@ -9,7 +9,7 @@
   function choose(next){onchange(next);popup.hidePopover();}
 </script>
 
-<button class="btn btn-ghost btn-xs font-mono font-bold" aria-label="Chat spacing" title="Chat spacing" aria-haspopup="dialog" popovertarget="chat-spacing-menu">T</button>
+<div class="tooltip tooltip-top" data-tip="Text"><button class="btn btn-ghost btn-xs font-mono font-bold" aria-label="Chat spacing" aria-haspopup="dialog" popovertarget="chat-spacing-menu">T</button></div>
 <div bind:this={popup} id="chat-spacing-menu" popover="auto" class="spacing-popover" role="dialog" aria-label="Chat spacing options">
   <h2 class="mb-3 text-sm font-semibold">Chat spacing</h2>
   <div class="grid gap-1" role="radiogroup" aria-label="Chat spacing">

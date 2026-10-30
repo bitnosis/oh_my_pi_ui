@@ -38,7 +38,7 @@
 <div class="header-modes" aria-label="OhMyPi modes">
   {#each definitions as [key,label,description]}
     <div class="tooltip tooltip-bottom" data-tip={tooltip(key,description)}>
-      <button class="mode-toggle" class:mode-on={modes[key]?.enabled===true} aria-label={label+' mode'} aria-pressed={modes[key]?.enabled===true} title={tooltip(key,description)} disabled={!ready||pending||w.active?.busy||!modes[key]?.supported||typeof modes[key]?.enabled!=='boolean'} onclick={()=>toggle(key)}><span class="mode-indicator" aria-hidden="true">{modes[key]?.supported===false?'−':'●'}</span>{label}</button>
+      <button class="mode-toggle" class:mode-on={modes[key]?.enabled===true} aria-label={label+' mode'} aria-pressed={modes[key]?.enabled===true} disabled={!ready||pending||w.active?.busy||!modes[key]?.supported||typeof modes[key]?.enabled!=='boolean'} onclick={()=>toggle(key)}><span class="mode-indicator" aria-hidden="true">{modes[key]?.supported===false?'−':'●'}</span>{label}</button>
     </div>
   {/each}
 </div>

@@ -1,12 +1,15 @@
 <script>
-  import { onMount } from 'svelte';
-  import { applyTheme, applyBuiltInTheme, builtInThemes, defaultColor } from '../lib/theme.js';
+  import { onMount, tick } from 'svelte';
+  import { applyTheme, applyBuiltInTheme, builtInThemes, defaultColor, setShowThemeBackgrounds } from '../lib/theme.js';
   let color = $state(defaultColor);
   let mode = $state('dark');
   let theme = $state('halloween');
+  let backgrounds = $state(true);
   let open = $state(false);
+  let dialog;
   let colorInput;
   export function openPicker(){open=true;}
+  $effect(()=>{if(!open){if(dialog?.open)dialog.close();return;}tick().then(()=>{if(open&&dialog&&!dialog.open)dialog.showModal();});});
   export function openColor(){colorInput?.click();}
   export function toggleMode(){toggle();}
   onMount(() => {
@@ -17,8 +20,16 @@
       if(saved==='custom'||builtInThemes.includes(saved))theme=saved;
       else if(!saved&&(localStorage.getItem('omp-theme-color')||localStorage.getItem('omp-theme-mode')))theme='custom';
     } catch {}
+    try { if(localStorage.getItem('omp-theme-backgrounds')==='off')backgrounds=false; } catch {}
+    setShowThemeBackgrounds(backgrounds);
     if(theme==='custom')applyTheme(color,mode);else applyBuiltInTheme(theme);
   });
+  function setBackgrounds(enabled){
+    backgrounds=enabled;
+    setShowThemeBackgrounds(enabled);
+    if(theme==='custom')applyTheme(color,mode);else applyBuiltInTheme(theme);
+    try { localStorage.setItem('omp-theme-backgrounds',enabled?'on':'off'); } catch {}
+  }
   function change(event) {
     color = event.currentTarget.value;
     theme = 'custom';
@@ -30,11 +41,12 @@
   const label=name=>name==='custom'?'Custom color':name.charAt(0).toUpperCase()+name.slice(1);
 </script>
 
-<div class="flex items-center gap-1"><input bind:this={colorInput} class="theme-picker" type="color" value={color} oninput={change} aria-label="Choose app color" title="Choose custom app color" /><button class="btn btn-ghost btn-xs" aria-label="Choose theme" title={'Theme: '+label(theme)} onclick={()=>{open=true;}}>◈</button><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} title="Toggle custom light / dark" onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div>
-{#if open}
-  <div class="modal modal-open"><div class="modal-box max-w-2xl">
+<div class="flex items-center gap-1"><div class="tooltip tooltip-top" data-tip="Color"><input bind:this={colorInput} class="theme-picker" type="color" value={color} oninput={change} aria-label="Choose app color"/></div><div class="tooltip tooltip-top" data-tip="Theme"><button class="btn btn-ghost btn-xs" aria-label="Choose theme" onclick={()=>{open=true;}}>◈</button></div><div class="tooltip tooltip-top" data-tip="Light / dark"><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div></div>
+<dialog bind:this={dialog} class="modal context-modal" onclose={()=>{open=false;}}>
+  {#if open}<div class="modal-box max-w-2xl">
     <div class="flex items-center justify-between"><div><h2 class="text-xl font-semibold">Choose a theme</h2><p class="muted mt-1 text-sm">Preview instantly. Your selection is saved automatically.</p></div><button class="btn btn-ghost btn-sm" aria-label="Close theme picker" onclick={()=>{open=false;}}>×</button></div>
-    <button class="btn mt-5 w-full justify-between" class:btn-primary={theme==='custom'} onclick={()=>choose('custom')}><span>Custom color · {color.toUpperCase()}</span><span>{theme==='custom'?'✓':'Use color picker'}</span></button>
+    <label class="mt-5 flex cursor-pointer items-center justify-between gap-4 rounded-box border border-[var(--theme-border)] px-4 py-3"><span class="text-sm font-medium">Show theme backgrounds</span><input class="toggle toggle-primary" type="checkbox" checked={backgrounds} aria-label="Show theme backgrounds" onchange={event=>setBackgrounds(event.currentTarget.checked)}/></label>
+    <button class="btn mt-3 w-full justify-between" class:btn-primary={theme==='custom'} onclick={()=>choose('custom')}><span>Custom color · {color.toUpperCase()}</span><span>{theme==='custom'?'✓':'Use color picker'}</span></button>
     <div class="mt-4 grid max-h-[55vh] grid-cols-2 gap-3 overflow-auto p-1 sm:grid-cols-3">
       {#each builtInThemes as name}
         <button data-theme={name} class="rounded-box border bg-base-100 p-3 text-left text-base-content" style:border-color={theme===name?'var(--color-primary)':'var(--color-base-300)'} aria-pressed={theme===name} onclick={()=>choose(name)}>
@@ -44,5 +56,5 @@
       {/each}
     </div>
     <div class="modal-action"><button class="btn btn-primary" onclick={()=>{open=false;}}>Done</button></div>
-  </div></div>
-{/if}
+  </div>{/if}
+</dialog>

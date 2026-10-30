@@ -146,7 +146,7 @@ const server=http.createServer(async(req,res)=>{
   try{
     const path=resolve(dist,url.pathname==='/'?'index.html':'.'+decodeURIComponent(url.pathname));
     if(!path.startsWith(dist+sep))throw new Error('Not found');
-    const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon'};
+    const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg','.jpeg':'image/jpeg','.webp':'image/webp','.gif':'image/gif','.ico':'image/x-icon'};
     const content=await fs.readFile(path);res.setHeader('Content-Type',mime[extname(path)]||'application/octet-stream');res.end(content);
   }catch{res.writeHead(404).end('Not found. Run npm run build before npm start.');}
 });
