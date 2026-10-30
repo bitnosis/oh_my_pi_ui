@@ -13,6 +13,14 @@
   const unstaged = $derived(git?.files?.filter(file => file.unstaged).length || 0);
   const ahead = $derived(Number(git?.ahead) || 0);
   const behind = $derived(Number(git?.behind) || 0);
+  const gitTip = $derived.by(() => {
+    const files = git?.files || [];
+    if (!w.folder) return 'Git';
+    if (!files.length) return 'Nothing to commit';
+    const shown = files.slice(0, 12).map(file => file.path);
+    const extra = files.length - shown.length;
+    return shown.join('\n') + (extra > 0 ? `\n+${extra} more` : '');
+  });
 
   function compact(value) {
     if (!Number.isFinite(value) || value <= 0) return '';
@@ -99,7 +107,7 @@
 <footer class="status-bar" aria-label="Workspace status">
   <div class="status-group" bind:this={root}>
     <button type="button" class="status-item" disabled={!w.folder} aria-haspopup="listbox" aria-expanded={open} onclick={toggleBranches}>
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="6.5" r="1.5"/><path d="M4.5 5v6M4.5 8.2C6 7.2 8.2 6.6 10 6.5"/></svg>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><circle cx="4.5" cy="3.5" r="1.5"/><circle cx="4.5" cy="12.5" r="1.5"/><circle cx="11.5" cy="6.5" r="1.5"/><path d="M4.5 5v6M4.5 8.2C6 7.2 8.2 6.6 10 6.5"/></svg>
       <span class="max-w-40 truncate">{git?.branch || (w.folder ? '…' : 'No folder')}</span>
       <span aria-hidden="true">▾</span>
     </button>
@@ -113,13 +121,20 @@
         {/each}
       </div>
     {/if}
-    <button type="button" class="status-item tooltip tooltip-top" data-tip="Git" aria-label="Git" disabled={!w.folder} onclick={() => { w.view = 'git'; }}>
-      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 3.5v9"/><path d="M3 5h3.5M7.5 5h5"/><path d="M3 9h3"/><path d="M6 9v4"/><path d="M6 11h3M10 11h3"/><path d="M6 13h3M10 13h2"/></svg>
+    <button type="button" class="status-item status-git tooltip tooltip-top" data-tip={gitTip} aria-label="Git" disabled={!w.folder} onclick={() => { w.view = 'git'; }}>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path d="M3 3.5v9"/><path d="M3 5h3.5M7.5 5h5"/><path d="M3 9h3"/><path d="M6 9v4"/><path d="M6 11h3M10 11h3"/><path d="M6 13h3M10 13h2"/></svg>
       {#if unstaged}<span>*{unstaged}</span>{/if}
       {#if staged}<span>+{staged}</span>{/if}
     </button>
     <span class="status-readout tooltip tooltip-top" data-tip="Commits to push">↑{ahead}</span>
     <span class="status-readout tooltip tooltip-top" data-tip="Commits to pull">↓{behind}</span>
+    <span class="status-divider" aria-hidden="true"></span>
+    <button type="button" class="status-item tooltip tooltip-top" class:on={w.view === 'chat'} data-tip="Conversation" aria-label="Conversation" aria-pressed={w.view === 'chat'} onclick={() => { w.view = 'chat'; }}>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path stroke-linejoin="round" d="M2.5 3.2h11v7.2H7.2L4 13.2V10.4H2.5z"/></svg>
+    </button>
+    <button type="button" class="status-item tooltip tooltip-top" class:on={w.view === 'agents'} data-tip="Agents" aria-label="Agents" aria-pressed={w.view === 'agents'} disabled={!w.folder} onclick={() => { w.view = 'agents'; }}>
+      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path stroke-linecap="round" d="M8 1.5v1.6"/><circle cx="8" cy="1.4" r=".6" fill="currentColor" stroke="none"/><rect x="3" y="3.3" width="10" height="7.2" rx="2"/><circle cx="6.1" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="9.9" cy="6.5" r=".7" fill="currentColor" stroke="none"/><path stroke-linecap="round" d="M6.2 8.5h3.6M5.2 10.5v2.3M10.8 10.5v2.3"/></svg>
+    </button>
   </div>
   <div class="status-group">
     <button type="button" class="status-item tooltip tooltip-top" data-tip="Context" aria-label="Context usage" disabled={!w.active?.ready || w.active.closed} onclick={onContext}>{contextLabel}</button>
