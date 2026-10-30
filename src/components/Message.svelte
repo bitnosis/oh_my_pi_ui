@@ -1,5 +1,7 @@
 <script>
   import { markdown, h2Sections } from '../lib/markdown.js';
+  import { splitAgentContext } from '../lib/agent-context.js';
+  import AgentSprite from './AgentSprite.svelte';
   let { message } = $props();
   let root = $state();
   const copyIcon = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><rect x="5.2" y="5.2" width="8" height="8" rx="1.2"/><path d="M10.6 5.2V3.6A1.1 1.1 0 0 0 9.5 2.5H3.6A1.1 1.1 0 0 0 2.5 3.6v5.9A1.1 1.1 0 0 0 3.6 10.6H5.2"/></svg>';
@@ -58,7 +60,17 @@
     {#if message.thinking}<details class="mb-3 text-sm"><summary class="cursor-pointer text-[var(--theme-muted)]">Thinking</summary><div class="mt-3 whitespace-pre-wrap text-[var(--theme-muted)]">{message.thinking}</div></details>{/if}
     <div class="markdown" bind:this={root} onclick={copySection}>{@html markdown(message.text)}</div>
   {:else}
-    <div class="whitespace-pre-wrap break-words">{message.text}</div>
+    {@const spoken = splitAgentContext(message.text)}
+    <div class="whitespace-pre-wrap break-words">{#if spoken.agent}<span class="inline-agent" title={spoken.agent}><AgentSprite name={spoken.agent} size={28} /></span>{/if}{spoken.text}</div>
     {#if message.details||message.result}<details class="mt-2 text-xs"><summary class="cursor-pointer">Details</summary>{#if message.details}<pre class="my-3 overflow-auto whitespace-pre-wrap">{message.details}</pre>{/if}{#if message.result}<pre class="max-h-80 overflow-auto whitespace-pre-wrap">{message.result}</pre>{/if}</details>{/if}
   {/if}
 </article>
+
+<style>
+  .inline-agent {
+    display: inline-flex;
+    vertical-align: middle;
+    margin-right: 0.35rem;
+  }
+</style>
+

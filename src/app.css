@@ -112,12 +112,17 @@ body { margin:0; background:var(--color-base-100); color:var(--color-base-conten
 .model-menu-button:disabled{opacity:.45;cursor:default}
 .model-menu-list{position:absolute;z-index:30;bottom:calc(100% + 8px);left:0;width:min(320px,70vw);max-height:min(360px,50vh);overflow:auto;padding:8px;border:1px solid var(--theme-border);border-radius:12px;background:var(--color-base-200);color:var(--color-base-content);box-shadow:0 12px 40px #0006}
 .model-menu-list .input{position:sticky;top:0;z-index:1}
-.model-option{display:flex;flex-direction:column;align-items:flex-start;width:100%;border:1px solid transparent;border-radius:8px;padding:8px 10px;text-align:left;background:transparent;color:inherit;cursor:pointer}
+.model-option{display:flex;flex-direction:column;align-items:flex-start;width:100%;border:1px solid transparent;border-radius:8px;padding:8px 10px;text-align:left;background:transparent;color:inherit}
+.model-option-name{min-width:0;flex:1;border:0;background:none;padding:0;color:inherit;font:inherit;text-align:left;cursor:pointer}
+.model-option-name:disabled{cursor:default;opacity:.45}
 .model-option:hover,.model-option.active{background:var(--color-base-300)}
 .model-option.active{border-color:var(--color-primary);color:var(--color-primary)}
 .model-option:disabled{opacity:.45;cursor:default}
 .model-option:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}
 .model-assignees{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:2px;min-width:0}
+.model-option .model-assignees{flex:0 0 auto;margin-left:auto;flex-wrap:nowrap;justify-content:flex-end}
+.composer-agent{display:inline-flex;align-items:center;gap:2px;height:24px;padding-right:2px;border:1px solid var(--theme-border);border-radius:999px;background:var(--color-base-200)}
+.composer-agent-clear{border:0;background:none;color:var(--theme-muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
 .agent-color{position:relative;display:block;width:1.15rem;height:1.15rem;flex-shrink:0;border:1.5px solid var(--theme-border);border-radius:50%;overflow:hidden;cursor:pointer}
 .agent-color input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
 .agent-color:focus-within{outline:2px solid var(--color-primary);outline-offset:2px}

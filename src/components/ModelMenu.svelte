@@ -3,6 +3,7 @@
   import {agentsForModels,assigneesFor} from '../lib/model-agents.js';
   import AgentMarks from './AgentMarks.svelte';
   import {currentCatalog,refreshCatalog} from '../lib/catalog.svelte.js';
+  import {clearAttachedAgent, setAttachedAgent} from '../lib/attached-agent.svelte.js';
 
   let open = $state(false);
   const cached=$derived(currentCatalog());
@@ -31,12 +32,21 @@
     try { await attempt(()=>refreshCatalog()); } finally { loading=false; }
   }
 
-  async function choose(model) {
-    if (changing || workspace.active?.busy || active(model)) { open = false; return; }
+  async function choose(model, agentName = null) {
+    if (changing || workspace.active?.busy) return;
+    const apply = () => agentName ? setAttachedAgent(agentName) : clearAttachedAgent();
+    if (active(model)) {
+      apply();
+      open = false;
+      return;
+    }
     changing = true;
     const saved = await attempt(async () => { await rpc('set_model', {provider: model.provider, modelId: model.id}); return true; });
     changing = false;
-    if (saved) open = false;
+    if (saved) {
+      apply();
+      open = false;
+    }
   }
 
   $effect(() => { if (!available) open = false; });
@@ -61,10 +71,10 @@
       <input class="input input-xs mb-1 w-full" aria-label="Search models" placeholder="Search models…" bind:value={query}/>
       {#if !visible.length}<p class="muted px-2 py-3 text-xs">{loading ? 'Loading models…' : 'No models match.'}</p>{/if}
       {#each visible as model (model.provider + '/' + model.id)}
-        <button type="button" class="model-option" class:active={active(model)} role="option" aria-selected={active(model)} disabled={changing || workspace.active?.busy} onclick={() => choose(model)}>
-          <span class="flex w-full items-center gap-2 text-sm"><AgentMarks agents={assigneesFor(model, assigned)} /><span class="min-w-0 flex-1 truncate">{model.name || model.id}</span>{#if active(model)}<span aria-hidden="true">✓</span>{/if}</span>
+        <div class="model-option" class:active={active(model)} role="option" aria-selected={active(model)}>
+          <span class="flex w-full items-center gap-2 text-sm"><button type="button" class="model-option-name" disabled={changing || workspace.active?.busy} onclick={() => choose(model)}>{model.name || model.id}{#if active(model)} <span aria-hidden="true">✓</span>{/if}</button><AgentMarks agents={assigneesFor(model, assigned)} onpick={(agent) => choose(model, agent.name)} /></span>
           <span class="muted text-xs">{model.provider}</span>
-        </button>
+        </div>
       {/each}
     </div>
   {/if}

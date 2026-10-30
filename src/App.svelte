@@ -38,6 +38,9 @@
     sendPrompt,
   } from "./lib/workspace.svelte.js";
   import { preferences, patchPreferences } from "./lib/preferences.svelte.js";
+  import { attachedAgent, clearAttachedAgent } from "./lib/attached-agent.svelte.js";
+  import { withAgentContext } from "./lib/agent-context.js";
+  import AgentSprite from "./components/AgentSprite.svelte";
 
   let prompt = $state(""),
     search = $state(""),
@@ -157,7 +160,7 @@
     sending = true;
     const result = await attempt(() =>
       sendPrompt(
-        prompt,
+        withAgentContext(prompt, attachedAgent.name),
         w.active.busy ? behavior : undefined,
         attachments.map((a) => a.content),
       ),
@@ -609,7 +612,7 @@
                 class="mb-3 flex flex-wrap items-center gap-2 text-xs"
               >
                 <ModelMenu /><ReasoningMenu
-                />{#if w.state.contextUsage}<ContextUsage
+                />{#if attachedAgent.name}<span class="composer-agent" title={`Attached agent ${attachedAgent.name}`}><AgentSprite name={attachedAgent.name} size={22} /><button type="button" class="composer-agent-clear" aria-label={`Remove ${attachedAgent.name}`} onclick={clearAttachedAgent}>×</button></span>{/if}{#if w.state.contextUsage}<ContextUsage
                     onCostBreakdown={() => costBreakdown?.show()}
                   />{/if}<button
                   class="btn btn-ghost btn-xs"
