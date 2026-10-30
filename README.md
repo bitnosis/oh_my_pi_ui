@@ -12,6 +12,9 @@ The desktop app starts its own loopback service on port **4322**, opens a native
 
 Desktop menus include **Session** (new, add project, search/refresh, rename, fork, compact, stop, close), **Workspace** (all app views and commands), and **Appearance** (themes, custom color, light/dark, zoom, fullscreen). Session actions enable automatically when available. Shortcuts use Ctrl on Windows/Linux and Command on macOS: `Ctrl/Cmd+N` creates a session, `Ctrl/Cmd+Shift+W` closes the active session, `Ctrl/Cmd+,` opens settings, `Ctrl/Cmd+Shift+T` opens themes, and `Ctrl/Cmd+Shift+P` opens OhMyPi commands. Closing a session preserves its saved conversation; quitting stops all agents owned by the desktop app.
 
+<img width="2580" height="1720" alt="image" src="https://github.com/user-attachments/assets/364c62cc-5d7c-4d6c-adeb-45febc1f78ad" />
+
+
 Build from source with Node.js installed:
 
 ```sh
