@@ -1,5 +1,6 @@
 <script>
-  import { onMount, tick } from "svelte";
+  import { onMount, tick, untrack } from "svelte";
+  import {refreshCatalog} from './lib/catalog.svelte.js';
   import {installModalFocus} from './lib/modal-focus.js';
   import ThemePicker from "./components/ThemePicker.svelte";
   import ChatSpacing from "./components/ChatSpacing.svelte";
@@ -78,6 +79,10 @@
     ),
   );
   const ready = $derived(Boolean(w.active?.ready && !w.active?.closed));
+  $effect(()=>{
+    const scope={folder:w.folder,profile:w.profile,connectionId:w.active?.id,ready:w.active?.ready&&!w.active?.closed};
+    if(w.connected&&scope.folder)untrack(()=>{refreshCatalog({scope}).catch(()=>{});});
+  });
   onMount(() => {
     let disposed = false;
     const removeModalFocus=installModalFocus();
@@ -518,6 +523,7 @@
           }}>{title}</button
         >{/each}
     </nav>
+    <NotificationBar/>
     {#if w.notice}<div class="workspace-notice" role="alert">
         <span class="whitespace-pre-wrap">{w.notice}</span><button
           class="btn btn-ghost btn-xs shrink-0"
@@ -903,4 +909,3 @@
   onCostBreakdown={() => costBreakdown?.show()}
 />
 <CostBreakdown bind:this={costBreakdown} />
-<NotificationBar/>

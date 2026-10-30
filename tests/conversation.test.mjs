@@ -28,10 +28,10 @@ test('all theme roles share the chosen hue, including neutral white and black',(
   assert.equal(themeVariables('#000000')['--logo-start'],'hsl(28 0% 62%)');
 });
 test('chat backgrounds fall back to the chosen default logo',()=>{
-  assert.equal(defaultChatBackgroundId,'leaf');
+  assert.equal(defaultChatBackgroundId,'pi');
   assert.equal(chatBackgroundChoices.leaf.image,'/backgrounds/logo-leaf.svg');
   assert.equal(chatBackgroundChoices.leaf.tint,'var(--color-primary)');
-  assert.equal(defaultChatBackground,chatBackgroundChoices.leaf);
+  assert.equal(defaultChatBackground,chatBackgroundChoices[defaultChatBackgroundId]);
   assert.deepEqual(themeBackground('dark'),defaultChatBackground);
   assert.deepEqual(themeBackground('custom'),defaultChatBackground);
   assert.deepEqual(themeBackground('halloween'),{image:'/backgrounds/halloween.png',opacity:0.15});

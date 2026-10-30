@@ -65,6 +65,8 @@ Windows was verified locally with OhMyPi 18.13.3. The code has Linux launch/proc
 
 ## Development
 
+ModelMenu, Models, and agent definitions share a Svelte 5 `$state` catalog in `src/lib/catalog.svelte.js`. Models, agent definitions, and roles hydrate from a versioned localStorage cache scoped by project/profile. Successful responses replace only changed data; failed or incomplete responses retain it. Requests are deduplicated with a 60-second freshness window, while Refresh and edits revalidate immediately. Persistence is debounced, skips unchanged data, keeps up to eight scopes, and excludes model headers/credentials. Provider authentication stays live and is not persisted in the catalog cache.
+
 ```sh
 npm ci
 npm run dev

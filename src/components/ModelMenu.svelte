@@ -1,12 +1,12 @@
 <script>
-  import {workspace,attempt,rpc,api} from '../lib/workspace.svelte.js';
+  import {workspace,attempt,rpc} from '../lib/workspace.svelte.js';
   import {agentsForModels,assigneesFor} from '../lib/model-agents.js';
   import AgentMarks from './AgentMarks.svelte';
+  import {currentCatalog,refreshCatalog} from '../lib/catalog.svelte.js';
 
   let open = $state(false);
-  let models = $state([]);
-  let agents = $state([]);
-  let roles = $state({});
+  const cached=$derived(currentCatalog());
+  const models=$derived(cached.models),agents=$derived(cached.agents),roles=$derived(cached.roles);
   let query = $state('');
   let changing = $state(false);
   let loading = $state(false);
@@ -26,15 +26,7 @@
     if (!open) return;
     query = '';
     loading = true;
-    const next = await attempt(async () => (await rpc('get_available_models')).models || []);
-    loading = false;
-    if (next) models = next;
-    if (!workspace.folder) { agents = []; roles = {}; return; }
-    try {
-      const data = await api('/api/agent-definitions', {folder: workspace.folder, profile: workspace.profile});
-      agents = data.agents || [];
-      roles = data.roles || {};
-    } catch { agents = []; roles = {}; }
+    try { await attempt(()=>refreshCatalog()); } finally { loading=false; }
   }
 
   async function choose(model) {

@@ -1,19 +1,19 @@
 <script>
   import { onMount } from "svelte";
+  import {currentCatalog,refreshCatalog,invalidateCatalog} from "../lib/catalog.svelte.js";
   import RobotLoader from "./RobotLoader.svelte";
   import {
     workspace as w,
     api,
-    rpc,
     showToast,
   } from "../lib/workspace.svelte.js";
   import { agentColor, setAgentColor } from "../lib/agent-appearance.svelte.js";
-  let agents = $state([]),
-    warnings = $state([]),
-    models = $state([]),
-    search = $state(""),
+  const cached=$derived(currentCatalog());
+  const agents=$derived(cached.agents),models=$derived(cached.models),warnings=$derived(cached.warnings);
+  let search = $state(""),
     error = $state(""),
     loading = $state(false),
+    refreshing = $state(false),
     saving = $state(false),
     definition = $state(null),
     settings = $state(null);
@@ -32,30 +32,31 @@
     ),
   );
   const payload = () => ({ folder: w.folder, profile: w.profile });
-  async function load() {
+  async function load(force=true,showAnimation=false) {
     if (!w.folder) return;
     loading = true;
+    if(showAnimation)refreshing=true;
     error = "";
     try {
-      const data = await api("/api/agent-definitions", payload());
-      agents = data.agents;
-      warnings = data.warnings || [];
+      if(force)invalidateCatalog();
+      await refreshCatalog({force,resources:["definitions"]});
     } catch (e) {
       error = /Unknown workspace operation/.test(e.message)
         ? "Restart the workspace to enable agent management."
         : e.message;
     } finally {
       loading = false;
+      if(showAnimation)refreshing=false;
     }
   }
   async function modelList() {
     if (w.active?.ready && !w.active.closed)
       try {
-        models = (await rpc("get_available_models")).models || [];
+        await refreshCatalog({resources:["models"]});
       } catch {}
   }
   onMount(() => {
-    load();
+    load(false);
     modelList();
   });
   function edit(agent) {
@@ -202,7 +203,7 @@
       <h2>Agents</h2>
     </div>
     <div class="ml-auto flex shrink-0 gap-2">
-      <button class="btn btn-sm" disabled={loading} onclick={load}
+      <button class="btn btn-sm" disabled={loading||saving} onclick={() => load(true,true)}
         >Refresh definitions</button
       ><button class="btn btn-primary btn-sm" onclick={() => edit(null)}
         >＋ New agent</button
@@ -224,7 +225,7 @@
     placeholder="Search agents…"
     bind:value={search}
   />
-  {#if loading && !agents.length}<RobotLoader />{/if}
+  {#if refreshing}<RobotLoader />{:else}
   <div class="grid items-stretch gap-3 lg:grid-cols-2">
     {#each filtered as agent}
       <article
@@ -335,13 +336,14 @@
       </article>
     {/each}
   </div>
-  {#if !loading && !error && !filtered.length}<p class="empty-note">
+  {#if !error && !filtered.length}<p class="empty-note">
       No matching agent definitions.
     </p>{/if}
   {#if warnings.length}<details class="muted mt-4 text-xs">
       <summary>Definition warnings ({warnings.length})</summary
       >{#each warnings as warning}<p class="mt-2">{warning}</p>{/each}
     </details>{/if}
+  {/if}
 </section>
 
 <datalist id="agent-model-options"

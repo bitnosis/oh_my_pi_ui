@@ -1,14 +1,23 @@
 <script>
   import {tick} from 'svelte';
+  import {currentCatalog,refreshCatalog,invalidateCatalog} from '../lib/catalog.svelte.js';
   import {workspace,attempt,rpc,api} from '../lib/workspace.svelte.js';
   import {agentsForModels,assigneesFor,rolesForModels} from '../lib/model-agents.js';
   import AgentMarks from './AgentMarks.svelte';
   import AgentIcon from './AgentIcon.svelte';
+  import {agentColor} from '../lib/agent-appearance.svelte.js';
+  const selectionInk=name=>{
+    const hex=agentColor(name);if(!hex)return 'var(--color-primary-content)';
+    const rgb=hex.slice(1).match(/../g).map(channel=>parseInt(channel,16)/255).map(value=>value<=.04045?value/12.92:((value+.055)/1.055)**2.4);
+    return rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722>.179?'#111111':'#ffffff';
+  };
   import ModelLogo from './ModelLogo.svelte';
   import RoleIcon from './RoleIcon.svelte';
   import NeuralLoader from './NeuralLoader.svelte';
-  let loading=$state(true);
-  let models=$state([]),providers=$state([]),levels=$state([]),agents=$state([]),roles=$state({}),filter=$state(''),changing=$state(false);
+  let loading=$state(true),refreshing=$state(false);
+  const cached=$derived(currentCatalog());
+  const models=$derived(cached.models),providers=$derived(cached.providers),levels=$derived(cached.levels),agents=$derived(cached.agents),roles=$derived(cached.roles);
+  let filter=$state(''),changing=$state(false);
   let assignmentDialog,assignmentModel=$state(null),assignmentScope=$state('user'),assignmentRows=$state([]),assignmentBusy=$state(false),assignmentError=$state('');
   let roleDialog,roleModel=$state(null),roleScope=$state('user'),roleState=$state(null),roleBusy=$state(false),roleError=$state(''),customRole=$state('');
   const builtInRoles=['default','smol','slow','vision','plan','commit','tiny','memory','task','advisor','widget','image','web','speech','dictation','judge'];
@@ -24,7 +33,7 @@
     if(roleBusy||!roleState)return;roleBusy=true;roleError='';
     try{
       roleState=await api('/api/agent-definitions/roles/save',{folder:workspace.folder,profile:workspace.profile,scope:roleScope,role,model:enabled?roleModel.provider+'/'+roleModel.id:null,revision:roleState.revision});
-      customRole='';const data=await catalog();agents=data.agents||[];roles=data.roles||{};
+      customRole='';await catalog();
     }catch(e){roleError=e.message;}finally{roleBusy=false;}
   }
   const active=model=>model.id===workspace.state.model?.id&&model.provider===workspace.state.model?.provider;
@@ -38,19 +47,20 @@
     assignmentBusy=true;assignmentError='';
     try{
       await api('/api/agent-definitions/settings/save',{folder:workspace.folder,profile:workspace.profile,scope:assignmentScope,name:agent.name,revision:agent.settings.revision,values:{...agent.settings.values,model:enabled?assignmentModel.provider+'/'+assignmentModel.id:null}});
-      const data=await catalog();agents=data.agents||[];roles=data.roles||{};await assignmentList();
+      await catalog();await assignmentList();
     }catch(e){assignmentError=e.message;}finally{assignmentBusy=false;}
   }
-  async function catalog(){if(!workspace.folder)return {agents:[],roles:{}};try{return await api('/api/agent-definitions',{folder:workspace.folder,profile:workspace.profile});}catch{return {agents:[],roles:{}};}}
-  async function load(){loading=true;try{await attempt(async()=>{const results=await Promise.all([rpc('get_available_models'),rpc('get_login_providers'),rpc('get_available_thinking_levels'),catalog()]);models=results[0].models||[];providers=results[1].providers||[];levels=results[2].levels||[];agents=results[3].agents||[];roles=results[3].roles||{};});}finally{loading=false;}}
-  async function choose(model){changing=true;await attempt(async()=>{await rpc('set_model',{provider:model.provider,modelId:model.id});await load();});changing=false;}
+  async function catalog(){invalidateCatalog();return refreshCatalog({force:true,resources:['definitions']});}
+  async function load(force=false,showAnimation=false){loading=true;if(showAnimation)refreshing=true;try{await attempt(()=>refreshCatalog({force,resources:['models','definitions','providers','levels']}));}finally{loading=false;if(showAnimation)refreshing=false;}}
+  async function refreshAuthentication(){invalidateCatalog('models');invalidateCatalog('providers');await load(true);}
+  async function choose(model){changing=true;await attempt(async()=>{await rpc('set_model',{provider:model.provider,modelId:model.id});});changing=false;}
   async function signOut(provider){
     await attempt(async()=>{
       const {accounts=[]}=await rpc('get_logout_accounts',{providerId:provider.id});
       const account=accounts.find(item=>item.active)||accounts[0];
       if(!account)throw new Error(`${provider.name} is signed in from outside saved accounts, so it can't be logged out here.`);
       await rpc('logout',{providerId:provider.id,credentialId:account.credentialId});
-      await load();
+      await refreshAuthentication();
     });
   }
   const listed=$derived([...models].filter(model=>(model.name+' '+model.id+' '+model.provider).toLowerCase().includes(filter.toLowerCase())).sort((a,b)=>(a.name||a.id||'').localeCompare(b.name||b.id||'',undefined,{sensitivity:'base'})||(a.provider||'').localeCompare(b.provider||'',undefined,{sensitivity:'base'})||String(a.id||'').localeCompare(String(b.id||''))));
@@ -58,9 +68,9 @@
   const providerList=$derived([...providers].sort((a,b)=>(a.name||a.id||'').localeCompare(b.name||b.id||'',undefined,{sensitivity:'base'})||String(a.id||'').localeCompare(String(b.id||''))));
   load();
 </script>
-<div class="panel"><div class="panel-heading"><div><h2>Models & providers</h2><p>Use the models and accounts available to your OhMyPi profile.</p></div><button class="btn btn-sm" disabled={loading} onclick={load}>Refresh</button></div>
-  {#if loading&&!models.length}<NeuralLoader/>{:else}
-  <div class="mb-6 rounded-box border border-[var(--theme-border)] bg-base-200 p-4"><div class="current-model-heading"><div class="min-w-0"><p class="muted text-xs uppercase tracking-widest">Current model</p><strong class="mt-2 block">{workspace.state.model?.name||workspace.state.model?.id||'Default model'}</strong><span class="muted text-sm">{workspace.state.model?.provider}</span></div><div class="current-model-assignments" aria-label="Current model assignments"><div class="current-model-chip-row"><span class="muted inline-flex shrink-0 items-center gap-1 text-xs tooltip tooltip-top" data-tip="Agents assigned to the current model"><AgentIcon/> Agents</span>{#if workspace.state.model&&assigneesFor(workspace.state.model,assigned).length}<AgentMarks agents={assigneesFor(workspace.state.model,assigned)}/>{:else}<span class="muted text-xs">None</span>{/if}</div><div class="current-model-chip-row"><span class="muted inline-flex shrink-0 items-center gap-1 text-xs tooltip tooltip-top" data-tip="Model roles routed to the current model"><RoleIcon/> Roles</span>{#if workspace.state.model&&assigneesFor(workspace.state.model,roleAssignments).length}{#each assigneesFor(workspace.state.model,roleAssignments) as role}<span class="badge badge-outline badge-xs normal-case" title={'@'+role.name}>@{role.name.toLowerCase()}</span>{/each}{:else}<span class="muted text-xs">None assigned</span>{/if}</div></div></div><div class="mt-4 flex flex-wrap items-center gap-3"><label class="text-sm" for="thinking">Reasoning</label><select id="thinking" class="select select-sm" value={workspace.state.thinkingLevel||'off'} onchange={e=>attempt(()=>rpc('set_thinking_level',{level:e.currentTarget.value}))}>{#each levels as level}<option value={level}>{level}</option>{/each}</select><label class="flex items-center gap-2 text-sm"><input class="toggle toggle-sm toggle-primary" type="checkbox" checked={workspace.state.fastModeEnabled||false} onchange={e=>attempt(()=>rpc('set_fast_mode',{enabled:e.currentTarget.checked}))}/>Fast mode</label>{#if workspace.state.slowModeSupported}<label class="flex items-center gap-2 text-sm"><input class="toggle toggle-sm" type="checkbox" checked={workspace.state.slowModeEnabled||false} onchange={e=>attempt(()=>rpc('set_slow_mode',{enabled:e.currentTarget.checked}))}/>Slow mode</label>{/if}</div></div>
+<div class="panel"><div class="panel-heading"><div><h2>Models & providers</h2><p>Use the models and accounts available to your OhMyPi profile.</p></div><button class="btn btn-sm" disabled={loading} onclick={()=>load(true,true)}>Refresh</button></div>
+  {#if refreshing}<NeuralLoader/>{:else}
+  <div class="mb-6 rounded-box border border-[var(--theme-border)] bg-base-200 p-4"><div class="current-model-heading"><div class="min-w-0"><p class="muted text-xs uppercase tracking-widest">Current model</p><strong class="mt-2 block">{workspace.state.model?.name||workspace.state.model?.id||'Default model'}</strong><span class="muted text-sm">{workspace.state.model?.provider}</span></div><div class="current-model-assignments" aria-label="Current model assignments"><div class="current-model-chip-row"><button type="button" class="btn btn-ghost btn-xs shrink-0 gap-1 tooltip tooltip-top" data-tip="Assign or unassign agents" aria-label="Assign agents to current model" disabled={!workspace.state.model||!workspace.folder} onclick={()=>openAssignments(workspace.state.model)}><AgentIcon/> Agents</button>{#if workspace.state.model&&assigneesFor(workspace.state.model,assigned).length}<AgentMarks agents={assigneesFor(workspace.state.model,assigned)}/>{:else}<span class="muted text-xs">None</span>{/if}</div><div class="current-model-chip-row"><button type="button" class="btn btn-ghost btn-xs shrink-0 gap-1 tooltip tooltip-top" data-tip="Assign or unassign model roles" aria-label="Assign roles to current model" disabled={!workspace.state.model||!workspace.folder} onclick={()=>openRoles(workspace.state.model)}><RoleIcon/> Roles</button>{#if workspace.state.model&&assigneesFor(workspace.state.model,roleAssignments).length}{#each assigneesFor(workspace.state.model,roleAssignments) as role}<span class="badge badge-outline badge-xs normal-case" title={'@'+role.name}>@{role.name.toLowerCase()}</span>{/each}{:else}<span class="muted text-xs">None assigned</span>{/if}</div></div></div><div class="mt-4 flex flex-wrap items-center gap-3"><label class="text-sm" for="thinking">Reasoning</label><select id="thinking" class="select select-sm" value={workspace.state.thinkingLevel||'off'} onchange={e=>attempt(()=>rpc('set_thinking_level',{level:e.currentTarget.value}))}>{#each levels as level}<option value={level}>{level}</option>{/each}</select><label class="flex items-center gap-2 text-sm"><input class="toggle toggle-sm toggle-primary" type="checkbox" checked={workspace.state.fastModeEnabled||false} onchange={e=>attempt(()=>rpc('set_fast_mode',{enabled:e.currentTarget.checked}))}/>Fast mode</label>{#if workspace.state.slowModeSupported}<label class="flex items-center gap-2 text-sm"><input class="toggle toggle-sm" type="checkbox" checked={workspace.state.slowModeEnabled||false} onchange={e=>attempt(()=>rpc('set_slow_mode',{enabled:e.currentTarget.checked}))}/>Slow mode</label>{/if}</div></div>
   <input class="input mb-4 w-full" aria-label="Search models" placeholder="Search models or providers…" bind:value={filter}/>
   <div class="grid gap-3 md:grid-cols-2">{#each listed as model (model.provider+'/'+model.id)}<article class="card min-w-0 border border-[var(--theme-border)] bg-base-200 p-4 text-left" class:model-active={active(model)}>
     <div class="flex items-center gap-2"><ModelLogo {model}/><strong class="min-w-0 flex-1 truncate text-sm">{model.name||model.id}</strong><input type="checkbox" class="toggle toggle-sm toggle-primary shrink-0" aria-label={'Use '+(model.name||model.id)+' as active model'} checked={active(model)} disabled={changing||workspace.active?.busy} onclick={e=>{if(active(model))e.preventDefault();}} onchange={()=>choose(model)}/></div>
@@ -70,7 +80,7 @@
       <div class="flex min-w-0 flex-1 items-center justify-end gap-1"><div class="flex flex-wrap justify-end gap-1">{#each assigneesFor(model,roleAssignments) as role}<span class="badge badge-outline badge-xs normal-case" title={'@'+role.name+(role.fallback?' (fallback)':'')}>@{role.name.toLowerCase()}</span>{/each}</div><button class="btn btn-ghost btn-xs shrink-0 tooltip tooltip-top" data-tip="Assign model roles such as @smol and @task" aria-label={'Assign roles to '+(model.name||model.id)} title="Assign or unassign model roles" onclick={()=>openRoles(model)}><RoleIcon/></button></div>
     </div>
   </article>{/each}</div>
-  <h3 class="mt-8 mb-4 text-lg font-semibold">Provider sign-in</h3><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{#each providerList as provider (provider.id)}<div class="provider-card flex min-w-0 flex-col items-start gap-3 rounded-box border border-[var(--theme-border)] p-3"><div class="min-w-0"><strong class="block break-words text-sm">{provider.name}</strong><span class="muted mt-1 block text-xs">{provider.authenticated?'Signed in':'Not signed in'}</span></div>{#if provider.authenticated}<button class="provider-logout btn btn-xs mt-auto" disabled={workspace.active?.busy} onclick={()=>signOut(provider)}>Logout</button>{:else}<button class="btn btn-xs mt-auto" disabled={!provider.available||workspace.active?.busy} onclick={()=>attempt(async()=>{await rpc('login',{providerId:provider.id});await load();})}>Sign in</button>{/if}</div>{/each}</div>
+  <h3 class="mt-8 mb-4 text-lg font-semibold">Provider sign-in</h3><div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">{#each providerList as provider (provider.id)}<div class="provider-card flex min-w-0 flex-col items-start gap-3 rounded-box border border-[var(--theme-border)] p-3"><div class="min-w-0"><strong class="block break-words text-sm">{provider.name}</strong><span class="muted mt-1 block text-xs">{provider.authenticated?'Signed in':'Not signed in'}</span></div>{#if provider.authenticated}<button class="provider-logout btn btn-xs mt-auto" disabled={workspace.active?.busy} onclick={()=>signOut(provider)}>Logout</button>{:else}<button class="btn btn-xs mt-auto" disabled={!provider.available||workspace.active?.busy} onclick={()=>attempt(async()=>{await rpc('login',{providerId:provider.id});await refreshAuthentication();})}>Sign in</button>{/if}</div>{/each}</div>
   {/if}
 </div>
 <dialog bind:this={assignmentDialog} class="modal context-modal" onclose={()=>{assignmentModel=null;}}>
@@ -79,7 +89,7 @@
     <p class="muted my-4 text-xs">Check an agent to use this model for future launches. Unchecking clears its model override in this scope and restores its inherited routing. Project settings take precedence over profile settings.</p>
     {#if assignmentError}<p role="alert" class="mb-3 text-sm text-error">{assignmentError}</p>{/if}
     {#if assignmentBusy}<p role="status" class="muted mb-3 text-xs">Updating assignments…</p>{/if}
-    <div class="max-h-80 space-y-2 overflow-y-auto">{#each assignmentRows as agent}<label class="flex items-center gap-3 rounded-lg bg-base-200 p-3"><input class="checkbox checkbox-primary checkbox-sm" type="checkbox" checked={agent.settings.values.model===assignmentModel.provider+'/'+assignmentModel.id} disabled={assignmentBusy} onchange={e=>assign(agent,e.currentTarget.checked)}/><span class="min-w-0"><strong class="block text-sm uppercase">{agent.name}</strong><span class="muted block text-xs">{agent.enabled?'Enabled':'Disabled'} · {agent.settings.values.model||'Inherited routing'}</span></span></label>{/each}</div>
+    <div class="max-h-80 space-y-2 overflow-y-auto">{#each assignmentRows as agent}<label class="flex items-center gap-3 rounded-lg bg-base-200 p-3"><input class="checkbox checkbox-primary checkbox-sm" style:--input-color={agentColor(agent.name)||'var(--color-primary)'} style:color={selectionInk(agent.name)} type="checkbox" checked={agent.settings.values.model===assignmentModel.provider+'/'+assignmentModel.id} disabled={assignmentBusy} onchange={e=>assign(agent,e.currentTarget.checked)}/><span class="min-w-0"><strong class="block text-sm uppercase">{agent.name}</strong><span class="muted block text-xs">{agent.enabled?'Enabled':'Disabled'} · {agent.settings.values.model||'Inherited routing'}</span></span></label>{/each}</div>
     <div class="modal-action"><button class="btn btn-sm" disabled={assignmentBusy} onclick={()=>assignmentDialog.close()}>Done</button></div>
   </div>{/if}
 </dialog>
@@ -108,6 +118,10 @@
   .provider-logout{background:#dc2626;border-color:#dc2626;color:#fff}
   .provider-logout:hover:not(:disabled){background:#b91c1c;border-color:#b91c1c}
 </style>
+
+
+
+
 
 
 
