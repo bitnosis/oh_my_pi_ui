@@ -10,7 +10,7 @@ test('Git view handles initial commits, staging, split diff inputs and stale cha
   const git=(args)=>runProcess('git',['-C',folder,...args]);
   await git(['init']);await git(['config','user.name','Fixture']);await git(['config','user.email','fixture@example.invalid']);
   const path='file with spaces.txt';await fs.writeFile(join(folder,path),'before\n');
-  let status=await gitStatus(folder);assert.equal(status.files[0].x,'?');assert.match((await gitDiff(folder,path)).text,/\+before/);
+  let status=await gitStatus(folder);assert.equal(status.files[0].x,'?');assert.equal(status.ahead,0);assert.equal(status.behind,0);assert.match((await gitDiff(folder,path)).text,/\+before/);
   status=await gitChange(folder,{action:'stage',path,revision:status.revision});assert.equal(status.files[0].staged,true);
   status=await gitChange(folder,{action:'unstage',path,revision:status.revision});assert.equal(status.files[0].x,'?');
   status=await gitChange(folder,{action:'stage',path,revision:status.revision});

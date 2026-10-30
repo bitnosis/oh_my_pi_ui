@@ -1,10 +1,11 @@
 import {emptyConversation,reduceEvent} from './conversation.js';
+import {connectPreferences} from './preferences.svelte.js';
 
 export const workspace=$state({
   connected:false,initialized:false,notice:'',pending:0,overview:{projects:[],sessions:[],running:[],profiles:['default']},
   active:null,state:{},conversation:emptyConversation(),dialogs:[],links:[],view:'chat',folder:'',profile:'default',streamOnline:false,revision:0,
 });
-let token='',events,poll,selection=0;
+let token='',events,poll,selection=0,stopSync=()=>{};
 export async function api(path,data={}){
   const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':token},body:JSON.stringify(data)});
   const result=await response.json();if(!response.ok)throw new Error(result.error||'The operation failed.');return result;
@@ -15,6 +16,7 @@ export async function initialize(){
   let disposed=false;
   try{
     const response=await fetch('/config');if(!response.ok)throw new Error('The workspace service is unavailable.');token=(await response.json()).token;
+    stopSync();stopSync=connectPreferences(token);
     workspace.connected=true;await refresh();
     try{workspace.folder=localStorage.getItem('omp-folder')||workspace.overview.projects[0]?.folder||'';}catch{}
     const previous=localStorage.getItem('omp-active-connection');const active=workspace.overview.running.find(c=>c.id===previous)||workspace.overview.running[0];
@@ -24,7 +26,7 @@ export async function initialize(){
   workspace.initialized=true;
   return ()=>{disposed=true;clearInterval(poll);events?.close();};
 }
-export function closeWorkspace(){clearInterval(poll);events?.close();}
+export function closeWorkspace(){clearInterval(poll);events?.close();stopSync();stopSync=()=>{};}
 export async function rpc(type,fields={}){
   const id=workspace.active?.id;if(!id)throw new Error('Start or resume a session first.');
   const result=await api('/api/rpc',{connectionId:id,command:{type,...fields}});

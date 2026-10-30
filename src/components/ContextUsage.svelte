@@ -1,7 +1,7 @@
 <script>
   import {tick} from 'svelte';
   import {workspace as w,api,rpc} from '../lib/workspace.svelte.js';
-  let {onCostBreakdown=()=>{}}=$props();
+  let {onCostBreakdown=()=>{},button=true}=$props();
   let dialog,open=$state(false),loading=$state(false),stats=$state(null),report=$state(''),note=$state(''),error=$state('');
   const usage=$derived(stats?.contextUsage||w.state.contextUsage);
   const number=value=>Number.isFinite(value)?Math.round(value).toLocaleString():'—';
@@ -20,10 +20,10 @@
       stats=result.stats;report=result.report||'';note=result.note||'';
     }catch(e){error=e.message;}finally{loading=false;}
   }
-  async function show(){open=true;await tick();dialog.showModal();await load();}
+  export async function show(){open=true;await tick();dialog.showModal();await load();}
 </script>
 
-<button class="btn btn-ghost btn-xs ml-auto" title="View context usage breakdown" aria-label="View context usage breakdown" onclick={show}>Context {Math.round(w.state.contextUsage?.percent||0)}% <span aria-hidden="true">▴</span></button>
+{#if button}<button class="btn btn-ghost btn-xs ml-auto" aria-label="View context usage breakdown" onclick={show}>Context {Math.round(w.state.contextUsage?.percent||0)}% <span aria-hidden="true">▴</span></button>{/if}
 <dialog bind:this={dialog} class="modal context-modal" onclose={()=>{open=false;}}>
   {#if open}<div class="modal-box max-w-xl">
     <div class="flex items-center justify-between"><h2 class="text-xl font-semibold">Context usage</h2><button class="btn btn-ghost btn-sm" aria-label="Close context usage" onclick={()=>dialog.close()}>×</button></div>

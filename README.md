@@ -50,7 +50,7 @@ Closing the browser leaves the service and its agents running. **Close session**
 - **Settings:** searchable full schema from `omp config list --json`, global/profile setting edits and resets validated through OhMyPi, with secret values masked by OhMyPi. Project overrides may still take precedence.
 - **MCP:** project/user-profile native MCP JSON configuration editor, optimistic revision checks, and backups before replacement. Restart affected sessions to load changes. Imported MCP configurations from other tools remain managed in their source applications.
 - **Plugins & skills:** installed package inventories and package install/uninstall/enable/disable or update operations through OhMyPi's CLI. Operations use the selected project/profile and scope; only install code you trust. Interactive installer flows that cannot run over pipes return an error rather than silently accepting prompts.
-- **Appearance:** 35 DaisyUI themes with instant previews and saved selection, plus a custom color picker and light/dark switch. Halloween is the default for new users; existing theme preferences are preserved. The **T** button beside the theme picker offers Standard, Compact, or Super compact line heights and message spacing. Super compact also reduces chat text from 15px to 14px. The selection is saved across launches. Desktop users can also choose it under **Appearance → Chat spacing**.
+- **Appearance:** 35 DaisyUI themes with instant previews and saved selection, plus a custom color picker and light/dark switch. Custom RGB 158, 39, 160 (#9e27a0) is the default for new users; existing theme preferences are preserved. The **T** button beside the theme picker offers Standard, Compact, or Super compact line heights and message spacing. Super compact also reduces chat text from 15px to 14px. The selection is saved across launches. Desktop users can also choose it under **Appearance → Chat spacing**.
 - **Interactive requests:** confirm, select, input, editor, and multi-question `ask` dialogs; expired/cancelled questions are dismissed. The app uses `--mode rpc-ui --no-pty` and negotiates lossless RPC v2 where available.
 
 ## Scope and compatibility
@@ -128,3 +128,4 @@ Create an empty remote repository first and replace `YOUR_REPOSITORY_URL` with i
 - `.github/workflows/check.yml`: Windows/Ubuntu build and test matrix.
 
 Protocol references: [OhMyPi RPC](https://github.com/can1357/oh-my-pi/blob/main/docs/rpc.md), [settings](https://github.com/can1357/oh-my-pi/blob/main/docs/settings.md), and [MCP configuration](https://github.com/can1357/oh-my-pi/blob/main/docs/mcp-config.md).
+

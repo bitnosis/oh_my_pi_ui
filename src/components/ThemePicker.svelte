@@ -1,10 +1,11 @@
 <script>
-  import { onMount, tick } from 'svelte';
-  import { applyTheme, applyBuiltInTheme, builtInThemes, defaultColor, setShowThemeBackgrounds } from '../lib/theme.js';
-  let color = $state(defaultColor);
-  let mode = $state('dark');
-  let theme = $state('halloween');
-  let backgrounds = $state(true);
+  import { tick } from 'svelte';
+  import { builtInThemes } from '../lib/theme.js';
+  import { preferences, patchPreferences } from '../lib/preferences.svelte.js';
+  const color = $derived(preferences.theme.color);
+  const mode = $derived(preferences.theme.mode);
+  const theme = $derived(preferences.theme.preset);
+  const backgrounds = $derived(preferences.theme.backgrounds);
   let open = $state(false);
   let dialog;
   let colorInput;
@@ -12,36 +13,14 @@
   $effect(()=>{if(!open){if(dialog?.open)dialog.close();return;}tick().then(()=>{if(open&&dialog&&!dialog.open)dialog.showModal();});});
   export function openColor(){colorInput?.click();}
   export function toggleMode(){toggle();}
-  onMount(() => {
-    try { const saved = localStorage.getItem('omp-theme-color'); if (/^#[0-9a-f]{6}$/i.test(saved)) color = saved; } catch {}
-    try { mode=localStorage.getItem('omp-theme-mode')==='light'?'light':'dark'; } catch {}
-    try {
-      const saved=localStorage.getItem('omp-theme-preset');
-      if(saved==='custom'||builtInThemes.includes(saved))theme=saved;
-      else if(!saved&&(localStorage.getItem('omp-theme-color')||localStorage.getItem('omp-theme-mode')))theme='custom';
-    } catch {}
-    try { if(localStorage.getItem('omp-theme-backgrounds')==='off')backgrounds=false; } catch {}
-    setShowThemeBackgrounds(backgrounds);
-    if(theme==='custom')applyTheme(color,mode);else applyBuiltInTheme(theme);
-  });
-  function setBackgrounds(enabled){
-    backgrounds=enabled;
-    setShowThemeBackgrounds(enabled);
-    if(theme==='custom')applyTheme(color,mode);else applyBuiltInTheme(theme);
-    try { localStorage.setItem('omp-theme-backgrounds',enabled?'on':'off'); } catch {}
-  }
-  function change(event) {
-    color = event.currentTarget.value;
-    theme = 'custom';
-    applyTheme(color,mode);
-    try { localStorage.setItem('omp-theme-color', color);localStorage.setItem('omp-theme-preset','custom'); } catch {}
-  }
-  function toggle(){mode=mode==='dark'?'light':'dark';theme='custom';applyTheme(color,mode);try{localStorage.setItem('omp-theme-mode',mode);localStorage.setItem('omp-theme-preset','custom');}catch{}}
-  function choose(name){theme=name;if(name==='custom')applyTheme(color,mode);else applyBuiltInTheme(name);try{localStorage.setItem('omp-theme-preset',name);}catch{} }
+  function setBackgrounds(enabled){patchPreferences({theme:{backgrounds:enabled}});}
+  function change(event){patchPreferences({theme:{color:event.currentTarget.value,preset:'custom'}});}
+  function toggle(){patchPreferences({theme:{mode:mode==='dark'?'light':'dark',preset:'custom'}});}
+  function choose(name){patchPreferences({theme:{preset:name}});}
   const label=name=>name==='custom'?'Custom color':name.charAt(0).toUpperCase()+name.slice(1);
 </script>
 
-<div class="flex items-center gap-1"><div class="tooltip tooltip-top" data-tip="Color"><input bind:this={colorInput} class="theme-picker" type="color" value={color} oninput={change} aria-label="Choose app color"/></div><div class="tooltip tooltip-top" data-tip="Theme"><button class="btn btn-ghost btn-xs" aria-label="Choose theme" onclick={()=>{open=true;}}>◈</button></div><div class="tooltip tooltip-top" data-tip="Light / dark"><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div></div>
+<div class="flex items-center gap-1"><div class="tooltip tooltip-top" data-tip="Color"><label class="theme-picker" style:background={color}><input bind:this={colorInput} type="color" value={color} oninput={change} aria-label="Choose app color"/></label></div><div class="tooltip tooltip-top" data-tip="Theme"><button class="btn btn-ghost btn-xs" aria-label="Choose theme" onclick={()=>{open=true;}}>◈</button></div><div class="tooltip tooltip-top" data-tip="Light / dark"><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div></div>
 <dialog bind:this={dialog} class="modal context-modal" onclose={()=>{open=false;}}>
   {#if open}<div class="modal-box max-w-2xl">
     <div class="flex items-center justify-between"><div><h2 class="text-xl font-semibold">Choose a theme</h2><p class="muted mt-1 text-sm">Preview instantly. Your selection is saved automatically.</p></div><button class="btn btn-ghost btn-sm" aria-label="Close theme picker" onclick={()=>{open=false;}}>×</button></div>

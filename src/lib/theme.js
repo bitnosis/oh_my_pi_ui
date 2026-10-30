@@ -1,14 +1,14 @@
-export const defaultColor = '#be3c4f';
+export const defaultColor = '#9e27a0';
 export const defaultBackgroundOpacity = 0.2;
 export const builtInThemes = ['light','dark','cupcake','bumblebee','emerald','corporate','synthwave','retro','cyberpunk','valentine','halloween','garden','forest','aqua','lofi','pastel','fantasy','wireframe','black','luxury','dracula','cmyk','autumn','business','acid','lemonade','night','coffee','winter','dim','nord','sunset','caramellatte','abyss','silk'];
 
 /** Pick 'pi' or 'leaf'. Themes with their own picture still use that picture. */
-export const defaultChatBackgroundId = 'leaf';
+export const defaultChatBackgroundId = 'pi';
 export const chatBackgroundChoices = {
   leaf: {
     image: '/backgrounds/logo-leaf.svg',
-    opacity: 0.1,
-    position: 'right 8% center',
+    opacity: 0.15,
+    position: '67% center',
     size: 'auto 52%',
     tint: 'var(--color-primary)',
   },

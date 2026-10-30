@@ -12,7 +12,26 @@ export async function gitStatus(folder){
   const branch=await git(folder,['symbolic-ref','--short','-q','HEAD']).catch(()=>'(detached HEAD)');
   const index=await git(folder,['diff','--cached','--raw','-z','--no-ext-diff','--no-textconv']);
   const stamps=await Promise.all(files.map(async file=>{const info=await lstat(join(folder,file.path)).catch(()=>null);return [file.path,info?.size,info?.mtimeMs,info?.ctimeMs];}));
-  return {root:folder,branch:branch.trim(),files,revision:hash(raw+index+JSON.stringify(stamps))};
+  let ahead=0,behind=0;
+  try{
+    const counts=(await git(folder,['rev-list','--left-right','--count','HEAD...@{upstream}'])).trim().split(/\s+/);
+    if(counts.length>=2){ahead=Number(counts[0])||0;behind=Number(counts[1])||0;}
+  }catch{}
+  return {root:folder,branch:branch.trim(),ahead,behind,files,revision:hash(raw+index+JSON.stringify(stamps))};
+}
+export async function gitBranches(folder){
+  folder=await root(folder);
+  const current=(await git(folder,['symbolic-ref','--short','-q','HEAD']).catch(()=>'')).trim();
+  const branches=(await git(folder,['for-each-ref','--format=%(refname:short)','refs/heads'])).split('\n').map(name=>name.trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,undefined,{sensitivity:'base'}));
+  return {branch:current||'(detached HEAD)',branches};
+}
+export async function gitCheckout(folder,branch){
+  if(typeof branch!=='string'||!/^[\w./-]+$/.test(branch)||branch.includes('..')||branch.startsWith('-')||branch.startsWith('/')||branch.endsWith('/')||branch.endsWith('.'))throw Error('Choose a branch.');
+  const repo=await root(folder);
+  const known=(await git(repo,['for-each-ref','--format=%(refname:short)','refs/heads'])).split('\n').map(name=>name.trim());
+  if(!known.includes(branch))throw Error('Choose a local branch.');
+  await git(repo,['checkout',branch]);
+  return gitStatus(repo);
 }
 export async function gitDiff(folder,path,staged=false){
   const status=await gitStatus(folder),file=status.files.find(f=>f.path===path);if(!file)throw Error('Choose a changed file.');

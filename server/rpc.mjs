@@ -43,7 +43,11 @@ export class AgentConnection extends EventEmitter {
       this.publish({type:'connection_closed',code});this.status();
     });
   }
-  summary(){return {id:this.id,folder:this.folder,profile:this.profile,ready:this.ready&&!this.initializing,busy:this.busy,closed:this.closed,startedAt:this.startedAt,sessionFile:this.state.sessionFile||this.sessionPath,sessionId:this.state.sessionId,name:this.state.sessionName,model:this.state.model,dialogCount:this.dialogs.size};}
+  taskCounts(){
+    const tasks=(this.state.todoPhases||[]).flatMap(phase=>phase.tasks||[]);
+    return {tasksDone:tasks.filter(task=>task.status==='completed').length,tasksTotal:tasks.length};
+  }
+  summary(){return {id:this.id,folder:this.folder,profile:this.profile,ready:this.ready&&!this.initializing,busy:this.busy,closed:this.closed,startedAt:this.startedAt,sessionFile:this.state.sessionFile||this.sessionPath,sessionId:this.state.sessionId,name:this.state.sessionName,model:this.state.model,dialogCount:this.dialogs.size,...this.taskCounts()};}
   status(){this.publish({type:'status',...this.summary()});}
   publish(event){
     const bytes=Buffer.byteLength(JSON.stringify(event));
@@ -78,6 +82,7 @@ export class AgentConnection extends EventEmitter {
         await this.hydrate();
       })().catch(error=>this.publish({type:'problem',text:error.message})).finally(()=>{this.initializing=false;this.status();});
     }
+    if(event.type==='state'&&event.data&&typeof event.data==='object')this.state=event.data;
     if(event.type==='response'){
       if(event.success&&event.command==='get_state'){this.state=event.data||{};this.busy=Boolean(this.state.isStreaming||this.state.hasPendingAsyncWork||this.state.isCompacting);this.status();}
       const p=this.pending.get(event.id);if(p){clearTimeout(p.timer);this.pending.delete(event.id);event.success?p.resolve(event.data||{}):p.reject(new Error(event.error||'OhMyPi refused the request.'));}

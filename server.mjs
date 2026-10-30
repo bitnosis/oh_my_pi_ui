@@ -6,11 +6,12 @@ import {resolve,sep,extname,basename} from 'node:path';
 import {homedir} from 'node:os';
 import {findOmp,runOmp} from './server/platform.mjs';
 import {AgentConnection} from './server/rpc.mjs';
-import {gitStatus,gitDiff,gitChange} from './server/git.mjs';
+import {gitStatus,gitDiff,gitChange,gitBranches,gitCheckout} from './server/git.mjs';
 import {openTraceDashboard,stopTraceDashboard} from './server/trace-dashboard.mjs';
 import {readModes,setMode} from './server/modes.mjs';
 import {listDefinitions,agentSettings,saveAgentSettings,saveDefinition} from './server/agent-catalog.mjs';
 import {profiles,savedProjects,saveProject,allSessions,knownSession,validFolder,browseFolders,listFiles,readProjectFile,worktrees,addWorktree,removeWorktree,mcpConfig,saveMcp,appData} from './server/storage.mjs';
+import {attachLive} from './server/live.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
 const cliCwd=process.env.OMP_WEB_DEFAULT_CWD||root;
@@ -49,6 +50,8 @@ async function api(path,data){
   if(path==='/api/state')return connection(data.connectionId).state;
   if(path==='/api/context')return connection(data.connectionId).contextStats();
   if(path==='/api/git/status')return gitStatus(await project(data.folder));
+  if(path==='/api/git/branches')return gitBranches(await project(data.folder));
+  if(path==='/api/git/checkout')return gitCheckout(await project(data.folder),data.branch);
   if(path==='/api/git/diff')return gitDiff(await project(data.folder),data.path,data.staged===true);
   if(path==='/api/git/change')return gitChange(await project(data.folder),data);
   if(path==='/api/trace-dashboard'){const c=connection(data.connectionId);return openTraceDashboard({folder:c.folder,profile:c.profile,sessionFile:c.state.sessionFile||c.sessionPath});}
@@ -150,6 +153,7 @@ const server=http.createServer(async(req,res)=>{
     const content=await fs.readFile(path);res.setHeader('Content-Type',mime[extname(path)]||'application/octet-stream');res.end(content);
   }catch{res.writeHead(404).end('Not found. Run npm run build before npm start.');}
 });
+const live=attachLive(server,{token,origin,port});
 export const ready=new Promise((resolve,reject)=>{
   server.once('error',reject);
   server.listen(port,'127.0.0.1',()=>{console.log(`OhMyPi workspace: ${origin}`);resolve(origin);});
@@ -164,6 +168,7 @@ export function shutdown(){
       c.child.once('close',()=>{clearTimeout(timeout);resolve();});c.stop();
     }));
     for(const res of streams)res.end();
+    live.close();
     await vite?.close();
     await new Promise(resolve=>{server.close(resolve);server.closeIdleConnections();});
     await Promise.all(pending);
