@@ -4,7 +4,7 @@ import {promises as fs} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {runProcess} from '../server/platform.mjs';
-import {gitStatus,gitDiff,gitChange,gitPush} from '../server/git.mjs';
+import {gitStatus,gitDiff,gitChange,gitPush,gitPull} from '../server/git.mjs';
 test('Git view handles initial commits, staging, split diff inputs and stale changes',async t=>{
   const folder=await fs.mkdtemp(join(tmpdir(),'omp-git-view-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
   const git=(args)=>runProcess('git',['-C',folder,...args]);
@@ -39,4 +39,13 @@ test('sync pushes commits that are ahead of the upstream branch',async t=>{
   status=await gitPush(folder);assert.equal(status.ahead,0);
   await assert.rejects(gitPush(folder),/Nothing to push/);
   assert.match((await git(bare,['log','--all','--oneline'])).stdout,/two/);
+  const clone=await fs.mkdtemp(join(tmpdir(),'omp-git-pull-'));
+  t.after(()=>fs.rm(clone,{recursive:true,force:true}));
+  await git(clone,['clone',bare,'.']);
+  await git(clone,['config','user.name','Fixture']);await git(clone,['config','user.email','fixture@example.invalid']);
+  await fs.writeFile(join(folder,'a.txt'),'three\n');await git(folder,['add','a.txt']);await git(folder,['commit','-m','three']);await git(folder,['push']);
+  await git(clone,['fetch']);
+  let pulled=await gitStatus(clone);assert.equal(pulled.behind,1);
+  pulled=await gitPull(clone);assert.equal(pulled.behind,0);
+  await assert.rejects(gitPull(clone),/Nothing to pull/);
 });

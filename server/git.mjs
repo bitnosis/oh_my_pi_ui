@@ -69,6 +69,17 @@ export async function gitChange(folder,{action,path,revision,message}){
     return gitStatus(repo);
   });locks.set(repo,next);try{return await next;}finally{if(locks.get(repo)===next)locks.delete(repo);}
 }
+export async function gitPull(folder){
+  const repo=await root(folder),previous=locks.get(repo)||Promise.resolve();
+  const next=previous.catch(()=>{}).then(async()=>{
+    const status=await gitStatus(repo);
+    const upstream=await git(repo,['rev-parse','--abbrev-ref','@{upstream}']).catch(()=>'');
+    if(!upstream.trim())throw Error('This branch has no upstream to pull from.');
+    if(!status.behind)throw Error('Nothing to pull.');
+    await git(repo,['pull','--ff-only'],{timeout:120000,...quietGit});
+    return gitStatus(repo);
+  });locks.set(repo,next);try{return await next;}finally{if(locks.get(repo)===next)locks.delete(repo);}
+}
 export async function gitPush(folder){
   const repo=await root(folder),previous=locks.get(repo)||Promise.resolve();
   const next=previous.catch(()=>{}).then(async()=>{

@@ -17,6 +17,7 @@
   let quickNavOpenedByHover = $state(false);
   let hoverCloseTimer;
   let switching = $state(false);
+  let syncing = $state(false);
   let root = $state();
   let navigationRoot = $state();
 
@@ -99,6 +100,28 @@
     });
     switching = false;
     if (saved) open = false;
+  }
+
+  async function pushCommits() {
+    if (syncing || !ahead || !w.folder) return;
+    syncing = true;
+    const saved = await attempt(async () => {
+      git = await api('/api/git/push', {folder: w.folder});
+      return true;
+    });
+    syncing = false;
+    if (saved) w.notice = 'Pushed commits to the upstream branch.';
+  }
+
+  async function pullCommits() {
+    if (syncing || !behind || !w.folder) return;
+    syncing = true;
+    const saved = await attempt(async () => {
+      git = await api('/api/git/pull', {folder: w.folder});
+      return true;
+    });
+    syncing = false;
+    if (saved) w.notice = 'Pulled commits from the upstream branch.';
   }
 
   function navigateTo(view) {
@@ -202,8 +225,8 @@
       {#if unstaged}<span>*{unstaged}</span>{/if}
       {#if staged}<span>+{staged}</span>{/if}
     </button>
-    <span class="status-readout tooltip tooltip-top" data-tip="Commits to push">↑{ahead}</span>
-    <span class="status-readout tooltip tooltip-top" data-tip="Commits to pull">↓{behind}</span>
+    <button type="button" class="status-item tooltip tooltip-top" data-tip={ahead ? `Push ${ahead} commit${ahead === 1 ? '' : 's'}` : 'Nothing to push'} aria-label="Push commits" disabled={!w.folder || !ahead || syncing} onclick={pushCommits}>↑{ahead}</button>
+    <button type="button" class="status-item tooltip tooltip-top" data-tip={behind ? `Pull ${behind} commit${behind === 1 ? '' : 's'}` : 'Nothing to pull'} aria-label="Pull commits" disabled={!w.folder || !behind || syncing} onclick={pullCommits}>↓{behind}</button>
   </div>
   <nav class="status-navigation" bind:this={navigationRoot} aria-label="Quick workspace navigation" class:expanded={quickNavOpen} onpointerenter={onNavigationPointerEnter} onpointerleave={onNavigationPointerLeave}>
     {#if quickNavOpen}<span class="radial-hover-zone" aria-hidden="true"></span>{/if}

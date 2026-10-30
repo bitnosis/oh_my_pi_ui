@@ -6,7 +6,7 @@ import {resolve,sep,extname,basename} from 'node:path';
 import {homedir,hostname} from 'node:os';
 import {findOmp,runOmp} from './server/platform.mjs';
 import {AgentConnection} from './server/rpc.mjs';
-import {gitStatus,gitDiff,gitChange,gitBranches,gitCheckout,gitPush} from './server/git.mjs';
+import {gitStatus,gitDiff,gitChange,gitBranches,gitCheckout,gitPush,gitPull} from './server/git.mjs';
 import {openTraceDashboard,stopTraceDashboard} from './server/trace-dashboard.mjs';
 import {readModes,setMode} from './server/modes.mjs';
 import {listDefinitions,agentSettings,saveAgentSettings,saveDefinition,modelRoleSettings,saveModelRole} from './server/agent-catalog.mjs';
@@ -55,6 +55,7 @@ async function api(path,data){
   if(path==='/api/git/diff')return gitDiff(await project(data.folder),data.path,data.staged===true);
   if(path==='/api/git/change')return gitChange(await project(data.folder),data);
   if(path==='/api/git/push')return gitPush(await project(data.folder));
+  if(path==='/api/git/pull')return gitPull(await project(data.folder));
   if(path==='/api/trace-dashboard'){const c=connection(data.connectionId);return openTraceDashboard({folder:c.folder,profile:c.profile,sessionFile:c.state.sessionFile||c.sessionPath});}
   if(path==='/api/modes')return readModes(connection(data.connectionId));
   if(path==='/api/modes/set')return setMode(connection(data.connectionId),data.mode,data.enabled);
