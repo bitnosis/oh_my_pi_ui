@@ -21,6 +21,7 @@
   import McpPanel from "./components/McpPanel.svelte";
   import PackagesPanel from "./components/PackagesPanel.svelte";
   import StatusBar from "./components/StatusBar.svelte";
+  import NotificationBar from './components/NotificationBar.svelte';
   import {
     workspace as w,
     api,
@@ -33,7 +34,7 @@
     selectConnection,
     sendPrompt,
   } from "./lib/workspace.svelte.js";
-  import {preferences, patchPreferences} from "./lib/preferences.svelte.js";
+  import { preferences, patchPreferences } from "./lib/preferences.svelte.js";
 
   let prompt = $state(""),
     search = $state(""),
@@ -100,7 +101,7 @@
   });
   function setChatDensity(value) {
     if (!["standard", "compact", "super-compact"].includes(value)) return;
-    patchPreferences({chatDensity: value});
+    patchPreferences({ chatDensity: value });
   }
   async function menuAction(action) {
     if (action.startsWith("density:")) {
@@ -220,14 +221,21 @@
       day: "numeric",
     });
   function taskMeter(connection) {
-    const phases = connection.id === w.active?.id ? w.state?.todoPhases : undefined;
-    const tasks = Array.isArray(phases) ? phases.flatMap((phase) => phase.tasks || []) : null;
+    const phases =
+      connection.id === w.active?.id ? w.state?.todoPhases : undefined;
+    const tasks = Array.isArray(phases)
+      ? phases.flatMap((phase) => phase.tasks || [])
+      : null;
     const total = tasks ? tasks.length : Number(connection.tasksTotal) || 0;
-    const done = tasks ? tasks.filter((task) => task.status === "completed").length : Number(connection.tasksDone) || 0;
+    const done = tasks
+      ? tasks.filter((task) => task.status === "completed").length
+      : Number(connection.tasksDone) || 0;
     return { done, total, ratio: total ? Math.min(1, done / total) : 0 };
   }
   function pieSlice(ratio) {
-    const cx = 8, cy = 8, r = 6.2;
+    const cx = 8,
+      cy = 8,
+      r = 6.2;
     const angle = ratio * Math.PI * 2 - Math.PI / 2;
     const x = cx + r * Math.cos(angle);
     const y = cy + r * Math.sin(angle);
@@ -330,14 +338,24 @@
               ></span
             ><span
               class="tooltip tooltip-left shrink-0"
-              data-tip={meter.total ? `${meter.done} of ${meter.total} tasks` : "No tasks yet"}
+              data-tip={meter.total
+                ? `${meter.done} of ${meter.total} tasks`
+                : "No tasks yet"}
               ><svg class="task-pie" viewBox="0 0 16 16" aria-hidden="true"
-                ><circle class="track" cx="8" cy="8" r="6.2" />{#if meter.ratio >= 1}<circle
+                ><circle
+                  class="track"
+                  cx="8"
+                  cy="8"
+                  r="6.2"
+                />{#if meter.ratio >= 1}<circle
                     class="fill"
                     cx="8"
                     cy="8"
                     r="6.2"
-                  />{:else if meter.ratio > 0}<path class="fill" d={pieSlice(meter.ratio)} />{/if}</svg
+                  />{:else if meter.ratio > 0}<path
+                    class="fill"
+                    d={pieSlice(meter.ratio)}
+                  />{/if}</svg
               ></span
             ></button
           >{/each}
@@ -557,7 +575,8 @@
                 class="welcome mx-auto max-w-[650px] pt-[9vh]"
               >
                 <span class="text-xs tracking-[.2em] text-primary"
-                  >A HOME FOR YOUR AGENTS</span
+                  >A HOME FOR YOUR AGENTS{#if w.overview.hostname}
+                    &nbsp;— {w.overview.hostname.toUpperCase()}{/if}</span
                 >
                 <h2 class="my-5 font-serif text-[42px] leading-tight">
                   What would you like to build?
@@ -806,7 +825,10 @@
       </section>
     {/if}
   </main>
-  <StatusBar onContext={() => contextUsage?.show()} onCost={() => costBreakdown?.show()} />
+  <StatusBar
+    onContext={() => contextUsage?.show()}
+    onCost={() => costBreakdown?.show()}
+  />
 </div>
 {#if folderPicker}<FolderPicker
     onclose={() => {
@@ -870,5 +892,10 @@
     </div>
   </div>{/if}
 
-<ContextUsage bind:this={contextUsage} button={false} onCostBreakdown={() => costBreakdown?.show()} />
+<ContextUsage
+  bind:this={contextUsage}
+  button={false}
+  onCostBreakdown={() => costBreakdown?.show()}
+/>
 <CostBreakdown bind:this={costBreakdown} />
+<NotificationBar/>

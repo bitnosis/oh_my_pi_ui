@@ -1,13 +1,18 @@
 <script>
   import { onMount } from "svelte";
-  import { workspace as w, api, rpc } from "../lib/workspace.svelte.js";
+  import RobotLoader from "./RobotLoader.svelte";
+  import {
+    workspace as w,
+    api,
+    rpc,
+    showToast,
+  } from "../lib/workspace.svelte.js";
   import { agentColor, setAgentColor } from "../lib/agent-appearance.svelte.js";
   let agents = $state([]),
     warnings = $state([]),
     models = $state([]),
     search = $state(""),
     error = $state(""),
-    notice = $state(""),
     loading = $state(false),
     saving = $state(false),
     definition = $state(null),
@@ -57,6 +62,7 @@
     error = "";
     definition = {
       name: agent?.name || "",
+      color: agentColor(agent?.name || "") || "",
       description: agent?.description || "",
       prompt: agent?.prompt || "",
       model: csv(agent?.fields.model),
@@ -88,11 +94,14 @@
     saving = true;
     error = "";
     try {
-      await api("/api/agent-definitions/save", { ...payload(), ...definition });
+      const { color, ...fields } = definition;
+      await api("/api/agent-definitions/save", { ...payload(), ...fields });
+      setAgentColor(fields.name, color);
       editor.close();
       definition = null;
-      notice =
-        "Agent definition saved. New launches use this definition; running agents keep their current setup.";
+      showToast(
+        "Agent definition saved. New launches use this definition; running agents keep their current setup.",
+      );
       await load();
     } catch (e) {
       error = e.message;
@@ -144,9 +153,41 @@
       });
       settingsDialog.close();
       settings = null;
-      notice =
-        "Agent settings saved to the selected profile. New launches use the updated routing; project overrides may take precedence.";
+      showToast(
+        "Agent settings saved to the selected profile. New launches use the updated routing; project overrides may take precedence.",
+      );
       await load();
+    } catch (e) {
+      error = e.message;
+    } finally {
+      saving = false;
+    }
+  }
+  async function toggleAgent(agent, enabled) {
+    if (saving) return;
+    saving = true;
+    error = "";
+    const context = payload();
+    try {
+      const current = await api("/api/agent-definitions/settings", {
+        ...context,
+        scope: "user",
+        name: agent.name,
+      });
+      await api("/api/agent-definitions/settings/save", {
+        ...context,
+        scope: "user",
+        name: agent.name,
+        revision: current.revision,
+        values: { ...current.values, enabled },
+      });
+      await load();
+      const updated = agents.find((item) => item.name === agent.name);
+      showToast(
+        updated?.enabled === enabled
+          ? `${agent.name} ${enabled ? "enabled" : "disabled"} for future launches.`
+          : "Saved to the selected profile. A project override controls this agent’s current availability.",
+      );
     } catch (e) {
       error = e.message;
     } finally {
@@ -156,15 +197,11 @@
 </script>
 
 <section class="mb-8" aria-label="Agent definitions">
-  <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
+  <div class="panel-heading !mb-2 flex-wrap">
     <div>
-      <h3 class="text-lg font-semibold">Agent definitions</h3>
-      <p class="muted mt-1 text-xs">
-        Bundled, profile, and project agents. Model routing and settings apply
-        to future launches.
-      </p>
+      <h2>Agents</h2>
     </div>
-    <div class="flex gap-2">
+    <div class="ml-auto flex shrink-0 gap-2">
       <button class="btn btn-sm" disabled={loading} onclick={load}
         >Refresh definitions</button
       ><button class="btn btn-primary btn-sm" onclick={() => edit(null)}
@@ -172,34 +209,51 @@
       >
     </div>
   </div>
+  <p class="muted mb-5 text-xs">
+    Manage agent types, model routing, and the agents working in this session.
+  </p>
   {#if error}<p
       role="alert"
       class="mb-4 rounded-lg bg-base-200 p-3 text-sm text-error"
     >
       {error}
     </p>{/if}
-  {#if notice}<p role="status" class="muted mb-4 text-sm">{notice}</p>{/if}
   <input
     class="input input-sm mb-4 w-full"
     aria-label="Search agent definitions"
     placeholder="Search agents…"
     bind:value={search}
   />
-  {#if loading && !agents.length}<p class="empty-note">
-      Loading native OhMyPi agent definitions…
-    </p>{/if}
+  {#if loading && !agents.length}<RobotLoader />{/if}
   <div class="grid items-stretch gap-3 lg:grid-cols-2">
     {#each filtered as agent}
       <article
         class="flex h-full flex-col rounded-box border border-[var(--theme-border)] bg-base-200 p-4"
+        class:opacity-30={!agent.enabled}
       >
         <div class="flex items-center justify-between gap-2">
-          <h4 class="font-bold uppercase" style:color={agentColor(agent.name) || null}>{agent.name}</h4>
+          <h4
+            class="font-bold uppercase"
+            style:color={agentColor(agent.name) || null}
+          >
+            {agent.name}
+          </h4>
           <div class="flex gap-2">
-            <span class="badge badge-outline badge-xs">{agent.source}</span
-            ><span class="badge badge-xs" class:badge-primary={agent.enabled}
-              >{agent.enabled ? "Enabled" : "Disabled"}</span
+            <span class="badge badge-outline badge-xs">{agent.source}</span>
+            <label
+              class="tooltip tooltip-top flex items-center"
+              data-tip={agent.enabled ? "Click to disable" : "Click to enable"}
             >
+              <input
+                type="checkbox"
+                class="toggle toggle-primary toggle-xs"
+                aria-label={`${agent.enabled ? "Disable" : "Enable"} ${agent.name}`}
+                checked={agent.enabled}
+                disabled={saving || loading}
+                onchange={(event) =>
+                  toggleAgent(agent, event.currentTarget.checked)}
+              />
+            </label>
           </div>
         </div>
         <p class="muted my-3 text-sm">{agent.description}</p>
@@ -212,12 +266,17 @@
           >
         </p>
         <div class="mt-auto flex items-center gap-2 pt-4">
-          <label class="agent-color tooltip tooltip-top" data-tip="Color" style:background={agentColor(agent.name) || "#767676"}>
+          <label
+            class="agent-color tooltip tooltip-top"
+            data-tip="Color"
+            style:background={agentColor(agent.name) || "#767676"}
+          >
             <input
               type="color"
               aria-label={`Color for ${agent.name}`}
               value={agentColor(agent.name) || "#767676"}
-              oninput={(event) => setAgentColor(agent.name, event.currentTarget.value)}
+              oninput={(event) =>
+                setAgentColor(agent.name, event.currentTarget.value)}
             />
           </label>
           <button
@@ -226,9 +285,24 @@
             aria-label="Model & settings"
             onclick={() => configure(agent)}
           >
-            <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z" />
+            <svg
+              viewBox="0 0 24 24"
+              class="size-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 0 0 2.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 0 0 1.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 0 0-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 0 0-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 0 0-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 0 0-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 0 0 1.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065Z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0Z"
+              />
             </svg>
           </button>
           <button
@@ -237,9 +311,24 @@
             aria-label={agent.canEdit ? "Edit" : "Customize"}
             onclick={() => edit(agent)}
           >
-            <svg viewBox="0 0 24 24" class="size-6" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-              <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z" />
-              <path stroke-linecap="round" stroke-linejoin="round" d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+            <svg
+              viewBox="0 0 24 24"
+              class="size-6"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Z"
+              />
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
+              />
             </svg>
           </button>
         </div>
@@ -304,6 +393,34 @@
                 >Selected profile</option
               ></select
             ></label
+          >
+        </div>
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="flex items-center gap-2 text-xs"
+            >Agent color
+            <input
+              type="color"
+              class="h-8 w-10 cursor-pointer rounded border border-[var(--theme-border)] bg-transparent p-0.5"
+              aria-label="Agent color"
+              value={definition.color || "#767676"}
+              oninput={(e) => {
+                definition.color = e.currentTarget.value;
+              }}
+            />
+          </label>
+          <span
+            class="badge badge-outline badge-sm"
+            style:color={definition.color || null}
+            style:border-color={definition.color || null}
+            >{definition.name || "New agent"}</span
+          >
+          <button
+            type="button"
+            class="btn btn-ghost btn-xs"
+            disabled={!definition.color}
+            onclick={() => {
+              definition.color = "";
+            }}>Use default</button
           >
         </div>
         <label class="text-xs"

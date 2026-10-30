@@ -2,10 +2,11 @@ import {emptyConversation,reduceEvent} from './conversation.js';
 import {connectPreferences} from './preferences.svelte.js';
 
 export const workspace=$state({
-  connected:false,initialized:false,notice:'',pending:0,overview:{projects:[],sessions:[],running:[],profiles:['default']},
+  connected:false,initialized:false,notice:'',toast:null,pending:0,overview:{projects:[],sessions:[],running:[],profiles:['default']},
   active:null,state:{},conversation:emptyConversation(),dialogs:[],links:[],view:'chat',folder:'',profile:'default',streamOnline:false,revision:0,
 });
 let token='',events,poll,selection=0,stopSync=()=>{};
+export function showToast(message){workspace.toast={message};}
 export async function api(path,data={}){
   const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':token},body:JSON.stringify(data)});
   const result=await response.json();if(!response.ok)throw new Error(result.error||'The operation failed.');return result;

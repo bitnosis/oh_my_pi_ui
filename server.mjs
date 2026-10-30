@@ -3,13 +3,13 @@ import {promises as fs} from 'node:fs';
 import {randomUUID} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
 import {resolve,sep,extname,basename} from 'node:path';
-import {homedir} from 'node:os';
+import {homedir,hostname} from 'node:os';
 import {findOmp,runOmp} from './server/platform.mjs';
 import {AgentConnection} from './server/rpc.mjs';
-import {gitStatus,gitDiff,gitChange,gitBranches,gitCheckout} from './server/git.mjs';
+import {gitStatus,gitDiff,gitChange,gitBranches,gitCheckout,gitPush} from './server/git.mjs';
 import {openTraceDashboard,stopTraceDashboard} from './server/trace-dashboard.mjs';
 import {readModes,setMode} from './server/modes.mjs';
-import {listDefinitions,agentSettings,saveAgentSettings,saveDefinition} from './server/agent-catalog.mjs';
+import {listDefinitions,agentSettings,saveAgentSettings,saveDefinition,modelRoleSettings,saveModelRole} from './server/agent-catalog.mjs';
 import {profiles,savedProjects,saveProject,allSessions,knownSession,validFolder,browseFolders,listFiles,readProjectFile,worktrees,addWorktree,removeWorktree,mcpConfig,saveMcp,appData} from './server/storage.mjs';
 import {attachLive} from './server/live.mjs';
 
@@ -28,7 +28,7 @@ async function project(folder){folder=await validFolder(folder);const known=(awa
 async function overview(refresh=false){
   const sessions=await allSessions(refresh),saved=await savedProjects();
   const projects=[...new Map([...saved,...sessions.map(s=>({folder:s.folder,name:basename(s.folder)}))].map(p=>[p.folder,p])).values()];
-  return {projects,sessions,running:[...connections.values()].filter(c=>!c.closed).map(c=>c.summary()),profiles:await profiles(),executable:findOmp()||null,platform:process.platform,home:homedir(),dataDirectory:appData};
+  return {projects,sessions,running:[...connections.values()].filter(c=>!c.closed).map(c=>c.summary()),profiles:await profiles(),executable:findOmp()||null,platform:process.platform,home:homedir(),hostname:hostname(),dataDirectory:appData};
 }
 async function start({folder,profile='default',sessionPath,restore=false}){
   if(!(await profiles()).includes(profile))throw new Error('Choose an existing OhMyPi profile.');
@@ -54,6 +54,7 @@ async function api(path,data){
   if(path==='/api/git/checkout')return gitCheckout(await project(data.folder),data.branch);
   if(path==='/api/git/diff')return gitDiff(await project(data.folder),data.path,data.staged===true);
   if(path==='/api/git/change')return gitChange(await project(data.folder),data);
+  if(path==='/api/git/push')return gitPush(await project(data.folder));
   if(path==='/api/trace-dashboard'){const c=connection(data.connectionId);return openTraceDashboard({folder:c.folder,profile:c.profile,sessionFile:c.state.sessionFile||c.sessionPath});}
   if(path==='/api/modes')return readModes(connection(data.connectionId));
   if(path==='/api/modes/set')return setMode(connection(data.connectionId),data.mode,data.enabled);
@@ -62,6 +63,8 @@ async function api(path,data){
     if(!(await profiles()).includes(profile))throw Error('Choose an existing OhMyPi profile.');
     if(path==='/api/agent-definitions')return listDefinitions({folder,profile});
     if(path==='/api/agent-definitions/settings')return agentSettings({...data,folder,profile});
+    if(path==='/api/agent-definitions/roles')return modelRoleSettings({...data,folder,profile});
+    if(path==='/api/agent-definitions/roles/save')return saveModelRole({...data,folder,profile});
     if(path==='/api/agent-definitions/settings/save')return saveAgentSettings({...data,folder,profile});
     if(path==='/api/agent-definitions/save')return saveDefinition({...data,folder,profile});
     throw Error('Unknown agent definition operation.');

@@ -78,6 +78,23 @@ export async function listDefinitions({folder,profile='default',bundledDir,setti
   return {agents,warnings,roles};
 }
 function settingsPath(folder,profile,scope){if(!['user','project'].includes(scope))throw Error('Choose a project or profile scope.');return join(scope==='user'?agentDirectory(profile):join(folder,'.omp'),'config.yml');}
+export async function modelRoleSettings({folder,profile='default',scope='user'}){
+  const path=settingsPath(folder,profile,scope),text=await readText(path),data=object(YAML.parse(text,{maxAliasCount:0}));
+  return {revision:hash(text),roles:object(data.modelRoles)};
+}
+export async function saveModelRole({folder,profile='default',scope='user',role,model,revision}){
+  if(typeof role!=='string'||!/^[a-z][a-z0-9_-]{0,63}$/.test(role)||['constructor','prototype','__proto__'].includes(role))throw Error('Choose a valid model role.');
+  if(model!==null&&(typeof model!=='string'||!model.trim()||model.length>500||/[\r\n]/.test(model)))throw Error('Choose a model.');
+  const path=settingsPath(folder,profile,scope);
+  return locked(path,async()=>{
+    const text=await readText(path);if(hash(text)!==revision)throw Error('Role settings changed. Reload before saving.');
+    const doc=YAML.parseDocument(text||'{}');if(doc.errors.length)throw Error('The existing configuration has YAML errors.');
+    if(model===null){if(doc.hasIn(['modelRoles',role]))doc.deleteIn(['modelRoles',role]);}
+    else doc.setIn(['modelRoles',role],model);
+    await writeChecked(path,doc.toString(),revision);
+    return modelRoleSettings({folder,profile,scope});
+  });
+}
 export async function agentSettings({folder,profile='default',scope='user',name}){
   nameCheck(name);const path=settingsPath(folder,profile,scope),text=await readText(path),data=object(YAML.parse(text,{maxAliasCount:0}));
   const task=object(data.task);

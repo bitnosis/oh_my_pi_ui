@@ -4,7 +4,7 @@ import {promises as fs} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {runProcess} from '../server/platform.mjs';
-import {gitStatus,gitDiff,gitChange} from '../server/git.mjs';
+import {gitStatus,gitDiff,gitChange,gitPush} from '../server/git.mjs';
 test('Git view handles initial commits, staging, split diff inputs and stale changes',async t=>{
   const folder=await fs.mkdtemp(join(tmpdir(),'omp-git-view-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
   const git=(args)=>runProcess('git',['-C',folder,...args]);
@@ -24,4 +24,19 @@ test('Git view handles initial commits, staging, split diff inputs and stale cha
   status=await gitChange(folder,{action:'unstage',path,revision:status.revision});assert.equal(status.files[0].staged,false);assert.equal(status.files[0].unstaged,true);
   await fs.rm(join(folder,path));status=await gitStatus(folder);
   status=await gitChange(folder,{action:'stage',path,revision:status.revision});assert.equal(status.files[0].x,'D');
+});
+test('sync pushes commits that are ahead of the upstream branch',async t=>{
+  const folder=await fs.mkdtemp(join(tmpdir(),'omp-git-sync-')),bare=await fs.mkdtemp(join(tmpdir(),'omp-git-bare-'));
+  t.after(()=>Promise.all([fs.rm(folder,{recursive:true,force:true}),fs.rm(bare,{recursive:true,force:true})]));
+  const git=(cwd,args)=>runProcess('git',['-C',cwd,...args]);
+  await git(bare,['init','--bare']);
+  await git(folder,['init']);await git(folder,['config','user.name','Fixture']);await git(folder,['config','user.email','fixture@example.invalid']);
+  await fs.writeFile(join(folder,'a.txt'),'one\n');await git(folder,['add','a.txt']);await git(folder,['commit','-m','one']);
+  await assert.rejects(gitPush(folder),/no upstream/);
+  await git(folder,['remote','add','origin',bare]);await git(folder,['push','-u','origin','HEAD']);
+  await fs.writeFile(join(folder,'a.txt'),'two\n');await git(folder,['add','a.txt']);await git(folder,['commit','-m','two']);
+  let status=await gitStatus(folder);assert.equal(status.ahead,1);
+  status=await gitPush(folder);assert.equal(status.ahead,0);
+  await assert.rejects(gitPush(folder),/Nothing to push/);
+  assert.match((await git(bare,['log','--all','--oneline'])).stdout,/two/);
 });

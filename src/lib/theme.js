@@ -15,8 +15,9 @@ export const chatBackgroundChoices = {
   pi: {
     image: '/backgrounds/logo-pi.svg',
     opacity: 0.25,
-    position: 'right 8% center',
+    position: '80% 50%',
     size: 'auto 52%',
+    gradient: 'linear-gradient(140deg,var(--logo-start,var(--color-secondary)),var(--logo-mid,var(--color-primary)) 54%,var(--logo-end,var(--color-accent)))',
   },
 };
 export const defaultChatBackground = chatBackgroundChoices[defaultChatBackgroundId];
@@ -43,6 +44,7 @@ export function themeBackground(name) {
     ...(entry.position ? { position: entry.position } : {}),
     ...(entry.size ? { size: entry.size } : {}),
     ...(entry.tint ? { tint: entry.tint } : {}),
+    ...(entry.gradient ? { gradient: entry.gradient } : {}),
   };
 }
 
@@ -55,11 +57,11 @@ export function setShowThemeBackgrounds(enabled) {
 function applyThemeBackground(name) {
   const root = document.documentElement;
   const background = showThemeBackgrounds ? themeBackground(name) : null;
-  const tinted = Boolean(background?.tint);
-  root.style.setProperty('--theme-bg-image', background && !tinted ? `url("${background.image}")` : 'none');
+  const tinted = Boolean(background?.tint || background?.gradient);
+  root.style.setProperty('--theme-bg-image', background?.gradient || (background && !tinted ? `url("${background.image}")` : 'none'));
   root.style.setProperty('--theme-bg-mask', tinted ? `url("${background.image}")` : 'none');
-  root.style.setProperty('--theme-bg-tint', tinted ? background.tint : 'transparent');
-  root.style.setProperty('--theme-bg-filter', tinted ? 'drop-shadow(0 0 18px var(--color-primary)) drop-shadow(0 0 36px var(--color-primary))' : 'none');
+  root.style.setProperty('--theme-bg-tint', background?.tint || 'transparent');
+  root.style.setProperty('--theme-bg-filter', background?.tint ? 'drop-shadow(0 0 18px var(--color-primary)) drop-shadow(0 0 36px var(--color-primary))' : 'none');
   root.style.setProperty('--theme-bg-opacity', background ? String(background.opacity) : '0');
   root.style.setProperty('--theme-bg-position', background?.position || 'center right');
   root.style.setProperty('--theme-bg-size', background?.size || 'cover');

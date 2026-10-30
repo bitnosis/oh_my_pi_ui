@@ -64,3 +64,6 @@ export function agentsForModels(models, agents, roles = {}) {
 export function assigneesFor(model, assigned) {
   return assigned.get(modelKey(model)) || [];
 }
+export function rolesForModels(models, roles={}) {
+  return agentsForModels(models,Object.entries(roles).map(([name,value])=>({name,modelSelectors:texts(value)})),roles);
+}

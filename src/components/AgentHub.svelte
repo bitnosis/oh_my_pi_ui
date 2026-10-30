@@ -10,7 +10,7 @@
 </script>
 <div class="panel">
   <div class="grid items-start gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-  <div class="min-w-0"><div class="panel-heading"><div><h2>Agents</h2><p>Manage agent types, model routing, and the agents working in this session.</p></div></div><AgentDefinitions/></div>
+  <div class="min-w-0"><AgentDefinitions/></div>
   <section class="live-agents-inset min-w-0" aria-label="Live agents and session tasks">
   <div class="mb-3 flex flex-wrap items-center justify-between gap-3"><h3 class="text-lg font-semibold">Live agents</h3><button class="btn btn-sm" onclick={()=>attempt(load)}>Refresh live agents</button></div>
   {#if !agents.length}<div class="empty-note">No subagents yet. Ask OhMyPi to delegate a task in the conversation; agents will appear here as they start.</div>{/if}

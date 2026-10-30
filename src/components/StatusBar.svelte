@@ -1,4 +1,5 @@
 <script>
+  import AgentIcon from './AgentIcon.svelte';
   import {workspace as w, api, attempt, rpc} from '../lib/workspace.svelte.js';
 
   let {onContext = () => {}, onCost = () => {}} = $props();
@@ -128,16 +129,27 @@
     </button>
     <span class="status-readout tooltip tooltip-top" data-tip="Commits to push">↑{ahead}</span>
     <span class="status-readout tooltip tooltip-top" data-tip="Commits to pull">↓{behind}</span>
-    <span class="status-divider" aria-hidden="true"></span>
+  </div>
+  <nav class="status-group status-navigation" aria-label="Quick workspace navigation">
     <button type="button" class="status-item tooltip tooltip-top" class:on={w.view === 'chat'} data-tip="Conversation" aria-label="Conversation" aria-pressed={w.view === 'chat'} onclick={() => { w.view = 'chat'; }}>
       <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path stroke-linejoin="round" d="M2.5 3.2h11v7.2H7.2L4 13.2V10.4H2.5z"/></svg>
     </button>
     <button type="button" class="status-item tooltip tooltip-top" class:on={w.view === 'agents'} data-tip="Agents" aria-label="Agents" aria-pressed={w.view === 'agents'} disabled={!w.folder} onclick={() => { w.view = 'agents'; }}>
-      <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.3" aria-hidden="true"><path stroke-linecap="round" d="M8 1.5v1.6"/><circle cx="8" cy="1.4" r=".6" fill="currentColor" stroke="none"/><rect x="3" y="3.3" width="10" height="7.2" rx="2"/><circle cx="6.1" cy="6.5" r=".7" fill="currentColor" stroke="none"/><circle cx="9.9" cy="6.5" r=".7" fill="currentColor" stroke="none"/><path stroke-linecap="round" d="M6.2 8.5h3.6M5.2 10.5v2.3M10.8 10.5v2.3"/></svg>
+      <AgentIcon/>
     </button>
-  </div>
+    <button type="button" class="status-item tooltip tooltip-top" class:on={w.view === 'models'} data-tip="Models" aria-label="Models" aria-pressed={w.view === 'models'} disabled={!w.active?.ready || w.active.closed} onclick={() => { w.view = 'models'; }}>
+      <svg viewBox="0 0 20 20" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.2" aria-hidden="true"><path d="M3 5l7-2 7 2M3 5l7 7 7-7M3 15l7-12 7 12M3 15l7-3 7 3" opacity=".7"/><g fill="var(--color-base-100)"><circle cx="3" cy="5" r="2"/><circle cx="3" cy="15" r="2"/><circle cx="10" cy="3" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="17" cy="5" r="2"/><circle cx="17" cy="15" r="2"/></g></svg>
+    </button>
+  </nav>
   <div class="status-group">
     <button type="button" class="status-item tooltip tooltip-top" data-tip="Context" aria-label="Context usage" disabled={!w.active?.ready || w.active.closed} onclick={onContext}>{contextLabel}</button>
     <button type="button" class="status-item tooltip tooltip-top" data-tip="Cost" aria-label="Session cost" disabled={!w.active?.ready || w.active.closed} onclick={onCost}>{money(cost)}</button>
   </div>
 </footer>
+<style>
+  .status-bar{position:relative}
+  .status-navigation{position:absolute;left:calc(50% + 142.5px + 12px);transform:translateX(-50%)}
+  @media(max-width:850px){.status-navigation{left:calc(50% + 112.5px + 12px)}}
+  @media(max-width:600px){.status-navigation{left:calc(50% + 12px)}}
+</style>
+

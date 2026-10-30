@@ -3,7 +3,8 @@ import {hash} from './storage.mjs';
 import {lstat} from 'node:fs/promises';
 import {join} from 'node:path';
 const locks=new Map();
-const git=async(folder,args)=> (await runProcess('git',['--literal-pathspecs','-c','core.quotePath=false','-C',folder,...args],{limit:4*1024*1024})).stdout;
+const git=async(folder,args,options={})=> (await runProcess('git',['--literal-pathspecs','-c','core.quotePath=false','-C',folder,...args],{limit:4*1024*1024,...options})).stdout;
+const quietGit={env:{...process.env,GIT_TERMINAL_PROMPT:'0',GCM_INTERACTIVE:'Never'}};
 async function root(folder){return (await git(folder,['rev-parse','--show-toplevel'])).trim();}
 export async function gitStatus(folder){
   folder=await root(folder);
@@ -65,6 +66,18 @@ export async function gitChange(folder,{action,path,revision,message}){
         else await git(repo,['rm','--cached','--',...paths]);
       }else throw Error('Unsupported Git action.');
     }
+    return gitStatus(repo);
+  });locks.set(repo,next);try{return await next;}finally{if(locks.get(repo)===next)locks.delete(repo);}
+}
+export async function gitPush(folder){
+  const repo=await root(folder),previous=locks.get(repo)||Promise.resolve();
+  const next=previous.catch(()=>{}).then(async()=>{
+    const status=await gitStatus(repo);
+    const upstream=await git(repo,['rev-parse','--abbrev-ref','@{upstream}']).catch(()=>'');
+    if(!upstream.trim())throw Error('This branch has no upstream to sync with.');
+    if(!status.ahead)throw Error('Nothing to push.');
+    if(status.behind)await git(repo,['pull','--ff-only'],{timeout:120000,...quietGit});
+    await git(repo,['push'],{timeout:120000,...quietGit});
     return gitStatus(repo);
   });locks.set(repo,next);try{return await next;}finally{if(locks.get(repo)===next)locks.delete(repo);}
 }

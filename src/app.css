@@ -48,6 +48,10 @@ body { margin:0; background:var(--color-base-100); color:var(--color-base-conten
 .markdown { font-size:15px; line-height:1.8; }
 .markdown :is(h1,h2,h3,h4,h5,h6) { font-weight:700; line-height:1.35; margin:1.5em 0 .65em; }
 .markdown h1 { font-size:27px; }.markdown h2 { font-size:23px; }.markdown h3 { font-size:19px; }
+.heading-copy{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;margin-left:8px;border:0;border-radius:5px;padding:0;vertical-align:middle;background:transparent;color:var(--theme-muted);cursor:pointer}
+.heading-copy svg{width:14px;height:14px}
+.heading-copy:hover,.heading-copy.copied{color:var(--color-primary);background:var(--color-base-300)}
+.heading-copy:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}
 .markdown>:first-child { margin-top:0; }.markdown p { margin:.65em 0 1em; }.markdown strong { font-weight:700; }
 .markdown code { font: .9em Consolas,'Courier New',monospace; background:var(--color-base-300); color:var(--color-primary); border:1px solid var(--theme-border); border-radius:5px; padding:2px 6px; white-space:pre-wrap; overflow-wrap:anywhere; }
 .markdown pre { margin:16px 0 24px; padding:18px 20px; background:var(--theme-code); border:1px solid var(--theme-border); border-radius:10px; overflow-x:auto; white-space:pre; line-height:1.65; }
@@ -113,7 +117,7 @@ body { margin:0; background:var(--color-base-100); color:var(--color-base-conten
 .model-option:disabled{opacity:.45;cursor:default}
 .model-option:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}
 .model-assignees{display:flex;flex:0 1 auto;flex-wrap:wrap;gap:4px;max-width:46%;min-width:0}
-.model-assignee{max-width:9rem;overflow:hidden;text-overflow:ellipsis;letter-spacing:.03em;text-transform:uppercase}
+.model-assignee{max-width:9rem;height:16px;min-height:0;padding:0 5px;overflow:hidden;text-overflow:ellipsis;font-size:10px;line-height:14px;letter-spacing:normal;text-transform:none}
 .agent-color{position:relative;display:block;width:1.15rem;height:1.15rem;flex-shrink:0;border:1.5px solid var(--theme-border);border-radius:50%;overflow:hidden;cursor:pointer}
 .agent-color input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
 .agent-color:focus-within{outline:2px solid var(--color-primary);outline-offset:2px}
