@@ -1,6 +1,7 @@
 import {EventEmitter} from 'node:events';
 import {createInterface} from 'node:readline';
 import {randomUUID} from 'node:crypto';
+import {stripVTControlCharacters} from 'node:util';
 import {spawnOmp,stopProcess} from './platform.mjs';
 
 // Validates lossless protocol-v2 chunks, including non-ASCII text split across byte boundaries.
@@ -63,6 +64,10 @@ export class AgentConnection extends EventEmitter {
     });
   }
   handle(event){
+    if(event.type==='command_output'&&this.modeOutput){this.modeOutput(stripVTControlCharacters(String(event.text||'')));return;}
+    if(event.type==='command_output'&&this.contextReportPending&&typeof event.text==='string'&&/^Context(?: window:| usage|\s*$)/m.test(event.text)){
+      this.emit('context_report',event);return;
+    }
     if(event.type==='ready'){
       this.ready=true;this.status();
       (async()=>{
@@ -89,6 +94,37 @@ export class AgentConnection extends EventEmitter {
     this.publish(event);
   }
   async refresh(){if(this.ready&&!this.closed)await this.request({type:'get_state'});}
+  async modeCommand(command,operation){
+    if(!['extended-context','skillful'].includes(command)||!['on','off','status'].includes(operation))throw new Error('Unsupported mode command.');
+    if(this.busy||this.modeOutput||this.contextReportPending)throw new Error('Wait for the current operation to finish.');
+    let text='';this.modeOutput=output=>{text+=output+'\n';};
+    try{
+      const result=await this.request({type:'prompt',message:`/${command} ${operation}`});
+      if(result.agentInvoked!==false)throw new Error('OhMyPi did not handle the mode command locally.');
+      return text.trim();
+    }finally{this.modeOutput=null;}
+  }
+  async contextStats(){
+    if(this.modeOutput||this.modeReadPromise)throw new Error('Wait for the mode update to finish.');
+    const stats=await this.request({type:'get_session_stats'});
+    if(this.busy)return {stats,note:'Pause or finish the current response to load the category breakdown.'};
+    const {commands=[]}=await this.request({type:'get_available_commands'});
+    if(!commands.some(c=>c.name==='context'&&c.source==='builtin'))return {stats,note:'This OhMyPi version does not expose the built-in context report.'};
+    if(this.busy)return {stats,note:'Finish the current response to load the category breakdown.'};
+    if(this.modeOutput||this.modeReadPromise)throw new Error('Wait for the mode update to finish.');
+    if(this.contextReportPending)return this.contextReportPending;
+    this.contextReportPending=(async()=>{
+      let report='';
+      const listener=event=>{if(event.type==='command_output'&&typeof event.text==='string'&&/^Context(?: window:| usage|\s*$)/m.test(event.text))report=stripVTControlCharacters(event.text);};
+      this.on('context_report',listener);
+      try{
+        const result=await this.request({type:'prompt',message:'/context'});
+        if(result.agentInvoked!==false)throw new Error('OhMyPi did not handle /context as a local report.');
+        return {stats,report,note:report?'':'OhMyPi did not return a category report.'};
+      }finally{this.off('context_report',listener);}
+    })();
+    try{return await this.contextReportPending;}finally{this.contextReportPending=null;}
+  }
   async transcript(){
     const messages=[];let cursor;
     for(let page=0;page<1000;page++){

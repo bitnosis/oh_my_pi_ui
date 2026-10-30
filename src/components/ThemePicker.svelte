@@ -5,6 +5,10 @@
   let mode = $state('dark');
   let theme = $state('halloween');
   let open = $state(false);
+  let colorInput;
+  export function openPicker(){open=true;}
+  export function openColor(){colorInput?.click();}
+  export function toggleMode(){toggle();}
   onMount(() => {
     try { const saved = localStorage.getItem('omp-theme-color'); if (/^#[0-9a-f]{6}$/i.test(saved)) color = saved; } catch {}
     try { mode=localStorage.getItem('omp-theme-mode')==='light'?'light':'dark'; } catch {}
@@ -26,7 +30,7 @@
   const label=name=>name==='custom'?'Custom color':name.charAt(0).toUpperCase()+name.slice(1);
 </script>
 
-<div class="flex items-center gap-1"><input class="theme-picker" type="color" value={color} oninput={change} aria-label="Choose app color" title="Choose custom app color" /><button class="btn btn-ghost btn-xs" aria-label="Choose theme" title={'Theme: '+label(theme)} onclick={()=>{open=true;}}>◈</button><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} title="Toggle custom light / dark" onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div>
+<div class="flex items-center gap-1"><input bind:this={colorInput} class="theme-picker" type="color" value={color} oninput={change} aria-label="Choose app color" title="Choose custom app color" /><button class="btn btn-ghost btn-xs" aria-label="Choose theme" title={'Theme: '+label(theme)} onclick={()=>{open=true;}}>◈</button><button class="btn btn-ghost btn-xs" aria-label={mode==='dark'?'Switch to light mode':'Switch to dark mode'} title="Toggle custom light / dark" onclick={toggle}>{mode==='dark'?'☀':'☾'}</button></div>
 {#if open}
   <div class="modal modal-open"><div class="modal-box max-w-2xl">
     <div class="flex items-center justify-between"><div><h2 class="text-xl font-semibold">Choose a theme</h2><p class="muted mt-1 text-sm">Preview instantly. Your selection is saved automatically.</p></div><button class="btn btn-ghost btn-sm" aria-label="Close theme picker" onclick={()=>{open=false;}}>×</button></div>

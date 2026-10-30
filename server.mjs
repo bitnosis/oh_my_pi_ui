@@ -6,9 +6,14 @@ import {resolve,sep,extname,basename} from 'node:path';
 import {homedir} from 'node:os';
 import {findOmp,runOmp} from './server/platform.mjs';
 import {AgentConnection} from './server/rpc.mjs';
+import {gitStatus,gitDiff,gitChange} from './server/git.mjs';
+import {openTraceDashboard,stopTraceDashboard} from './server/trace-dashboard.mjs';
+import {readModes,setMode} from './server/modes.mjs';
+import {listDefinitions,agentSettings,saveAgentSettings,saveDefinition} from './server/agent-catalog.mjs';
 import {profiles,savedProjects,saveProject,allSessions,knownSession,validFolder,browseFolders,listFiles,readProjectFile,worktrees,addWorktree,removeWorktree,mcpConfig,saveMcp,appData} from './server/storage.mjs';
 
 const root=fileURLToPath(new URL('.',import.meta.url));
+const cliCwd=process.env.OMP_WEB_DEFAULT_CWD||root;
 const port=Number(process.env.PORT||4320),origin=`http://127.0.0.1:${port}`,token=randomUUID();
 const development=process.argv.includes('--dev');
 const vite=development?await(await import('vite')).createServer({root,server:{middlewareMode:true,hmr:{port:port+1,host:'127.0.0.1'}},appType:'spa'}):null;
@@ -33,7 +38,7 @@ async function start({folder,profile='default',sessionPath,restore=false}){
   for(const [id,c] of connections)if(c.closed)connections.delete(id);
   const c=new AgentConnection({folder,profile,sessionPath,restore});connections.set(c.id,c);return c.summary();
 }
-async function cliJson(args,folder,profile){const {stdout}=await runOmp(args,{cwd:folder||root,profile});try{return JSON.parse(stdout);}catch{throw new Error('This OhMyPi version did not return structured output. Update OhMyPi and try again.');}}
+async function cliJson(args,folder,profile){const {stdout}=await runOmp(args,{cwd:folder||cliCwd,profile});try{return JSON.parse(stdout);}catch{throw new Error('This OhMyPi version did not return structured output. Update OhMyPi and try again.');}}
 async function api(path,data){
   if(path==='/api/shutdown'){setTimeout(shutdown,100);return {closing:true};}
   if(path==='/api/overview')return overview(data.refresh);
@@ -42,6 +47,22 @@ async function api(path,data){
   if(path==='/api/start')return start(data);
   if(path==='/api/stop'){connection(data.connectionId).stop();return {};}
   if(path==='/api/state')return connection(data.connectionId).state;
+  if(path==='/api/context')return connection(data.connectionId).contextStats();
+  if(path==='/api/git/status')return gitStatus(await project(data.folder));
+  if(path==='/api/git/diff')return gitDiff(await project(data.folder),data.path,data.staged===true);
+  if(path==='/api/git/change')return gitChange(await project(data.folder),data);
+  if(path==='/api/trace-dashboard'){const c=connection(data.connectionId);return openTraceDashboard({folder:c.folder,profile:c.profile,sessionFile:c.state.sessionFile||c.sessionPath});}
+  if(path==='/api/modes')return readModes(connection(data.connectionId));
+  if(path==='/api/modes/set')return setMode(connection(data.connectionId),data.mode,data.enabled);
+  if(path.startsWith('/api/agent-definitions')){
+    const folder=await project(data.folder),profile=data.profile||'default';
+    if(!(await profiles()).includes(profile))throw Error('Choose an existing OhMyPi profile.');
+    if(path==='/api/agent-definitions')return listDefinitions({folder,profile});
+    if(path==='/api/agent-definitions/settings')return agentSettings({...data,folder,profile});
+    if(path==='/api/agent-definitions/settings/save')return saveAgentSettings({...data,folder,profile});
+    if(path==='/api/agent-definitions/save')return saveDefinition({...data,folder,profile});
+    throw Error('Unknown agent definition operation.');
+  }
   if(path==='/api/rpc'){
     const c=connection(data.connectionId),command=data.command;
     if(!command||!rpcCommands.has(command.type))throw new Error('Unsupported workspace command.');
@@ -54,6 +75,7 @@ async function api(path,data){
   }
   if(path==='/api/prompt'){
     const c=connection(data.connectionId);
+    if(c.modeOutput||c.modeReadPromise||c.contextReportPending)throw new Error('Wait for the session controls to finish updating.');
     if(c.initializing)throw new Error('OhMyPi is still loading this session.');
     if(typeof data.message!=='string'||!data.message.trim())throw new Error('Enter a message.');
     const behavior=['steer','followUp'].includes(data.streamingBehavior)?data.streamingBehavior:undefined;
@@ -71,10 +93,10 @@ async function api(path,data){
     if([...connections.values()].some(c=>!c.closed&&resolve(c.folder)===resolve(data.path)))throw new Error('Close sessions using this worktree before removing it.');
     return removeWorktree(await project(data.folder),data.path);
   }
-  if(path==='/api/settings')return cliJson(['config','list','--json'],data.folder?await project(data.folder):root,data.profile);
+  if(path==='/api/settings')return cliJson(['config','list','--json'],data.folder?await project(data.folder):cliCwd,data.profile);
   if(path==='/api/settings/save'){
     if(!/^[\w.]+$/.test(data.key))throw new Error('Invalid setting key.');
-    const folder=data.folder?await project(data.folder):root;
+    const folder=data.folder?await project(data.folder):cliCwd;
     const schema=await cliJson(['config','list','--json'],folder,data.profile);if(!schema[data.key])throw new Error('Unknown setting.');
     const args=data.reset?['config','reset',data.key,'--json']:['config','set',data.key,typeof data.value==='string'?data.value:JSON.stringify(data.value),'--json'];
     const {stdout}=await runOmp(args,{cwd:folder,profile:data.profile});return {saved:true,message:schema[data.key].redacted?'Credential updated.':stdout.slice(0,1000)};
@@ -83,7 +105,7 @@ async function api(path,data){
   if(path==='/api/mcp/save')return saveMcp({...data,folder:data.folder?await project(data.folder):root});
   if(path==='/api/packages'){
     if(!['plugin','skill'].includes(data.kind))throw new Error('Choose plugins or skills.');
-    return cliJson([data.kind,'list','--json'],data.folder?await project(data.folder):root,data.profile);
+    return cliJson([data.kind,'list','--json'],data.folder?await project(data.folder):cliCwd,data.profile);
   }
   if(path==='/api/packages/change'){
     if(!['plugin','skill'].includes(data.kind)||!['install','uninstall','enable','disable','update'].includes(data.action)||typeof data.target!=='string'||!data.target.trim()||data.target.startsWith('-'))throw new Error('Invalid package action.');
@@ -91,7 +113,7 @@ async function api(path,data){
     const args=[data.kind,data.action,data.target];
     if(data.kind==='plugin')args.push('--scope',data.scope==='project'?'project':'user');
     if(data.kind==='skill'&&data.scope!=='project')args.push('--global');
-    const {stdout}=await runOmp(args,{cwd:data.folder?await project(data.folder):root,profile:data.profile,timeout:180000});return {message:stdout.slice(-12000)};
+    const {stdout}=await runOmp(args,{cwd:data.folder?await project(data.folder):cliCwd,profile:data.profile,timeout:180000});return {message:stdout.slice(-12000)};
   }
   throw new Error('Unknown workspace operation.');
 }
@@ -99,7 +121,7 @@ async function api(path,data){
 const server=http.createServer(async(req,res)=>{
   if(req.headers.host!==`127.0.0.1:${port}`||(req.headers.origin&&req.headers.origin!==origin)){res.writeHead(403).end();return;}
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');
-  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'"+(development?' ws://127.0.0.1:*':'')+"; img-src 'self' data:; frame-ancestors 'none'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'"+(development?' ws://127.0.0.1:*':'')+"; img-src 'self' data:; frame-src http://127.0.0.1:3847; frame-ancestors 'none'");
   if(req.method==='GET'&&req.url==='/config'){json(res,{token,app:'ohmypi-workspace'});return;}
   const url=new URL(req.url,origin);
   if(req.method==='GET'&&url.pathname==='/api/events'){
@@ -128,7 +150,24 @@ const server=http.createServer(async(req,res)=>{
     const content=await fs.readFile(path);res.setHeader('Content-Type',mime[extname(path)]||'application/octet-stream');res.end(content);
   }catch{res.writeHead(404).end('Not found. Run npm run build before npm start.');}
 });
-server.listen(port,'127.0.0.1',()=>console.log(`OhMyPi workspace: ${origin}`));
-server.on('error',error=>{console.error(error.message);process.exitCode=1;});
-async function shutdown(){for(const c of connections.values())if(!c.closed)c.stop();for(const res of streams)res.end();await vite?.close();server.close();}
+export const ready=new Promise((resolve,reject)=>{
+  server.once('error',reject);
+  server.listen(port,'127.0.0.1',()=>{console.log(`OhMyPi workspace: ${origin}`);resolve(origin);});
+});
+ready.catch(error=>{console.error(error.message);process.exitCode=1;});
+let stopping;
+export function shutdown(){
+  return stopping??=(async()=>{
+    stopTraceDashboard();
+    const pending=[...connections.values()].filter(c=>!c.closed).map(c=>new Promise(resolve=>{
+      const timeout=setTimeout(resolve,6000);
+      c.child.once('close',()=>{clearTimeout(timeout);resolve();});c.stop();
+    }));
+    for(const res of streams)res.end();
+    await vite?.close();
+    await new Promise(resolve=>{server.close(resolve);server.closeIdleConnections();});
+    await Promise.all(pending);
+  })();
+}
+export {server};
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

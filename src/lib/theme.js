@@ -1,5 +1,28 @@
 export const defaultColor = '#be3c4f';
+export const defaultBackgroundOpacity = 0.7;
 export const builtInThemes = ['light','dark','cupcake','bumblebee','emerald','corporate','synthwave','retro','cyberpunk','valentine','halloween','garden','forest','aqua','lofi','pastel','fantasy','wireframe','black','luxury','dracula','cmyk','autumn','business','acid','lemonade','night','coffee','winter','dim','nord','sunset','caramellatte','abyss','silk'];
+
+/** Main-area art keyed by built-in theme. Themes left out of this map stay plain. */
+export const themeBackgrounds = {
+  halloween: { image: '/backgrounds/halloween.jpg', opacity: 0.7 },
+};
+
+export function themeBackground(name) {
+  const entry = themeBackgrounds[name];
+  if (!entry?.image) return null;
+  const opacity = Number(entry.opacity);
+  return {
+    image: entry.image,
+    opacity: Number.isFinite(opacity) ? Math.min(1, Math.max(0, opacity)) : defaultBackgroundOpacity,
+  };
+}
+
+function applyThemeBackground(name) {
+  const root = document.documentElement;
+  const background = themeBackground(name);
+  root.style.setProperty('--theme-bg-image', background ? `url("${background.image}")` : 'none');
+  root.style.setProperty('--theme-bg-opacity', background ? String(background.opacity) : '0');
+}
 
 export function themeVariables(hex, mode='dark') {
   if (!/^#[0-9a-f]{6}$/i.test(hex)) return null;
@@ -57,6 +80,7 @@ export function applyTheme(hex,mode='dark') {
   document.documentElement.dataset.theme='omp';
   for (const [key, value] of Object.entries(variables)) document.documentElement.style.setProperty(key, value);
   document.documentElement.style.colorScheme=mode;
+  applyThemeBackground('custom');
 }
 
 export function applyBuiltInTheme(name) {
@@ -65,5 +89,6 @@ export function applyBuiltInTheme(name) {
   for(const key of Object.keys(themeVariables(defaultColor)))root.style.removeProperty(key);
   root.style.removeProperty('color-scheme');
   root.dataset.theme=name;
+  applyThemeBackground(name);
   return true;
 }

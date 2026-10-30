@@ -2,9 +2,17 @@
   "name": "ohmypi-svelte",
   "version": "0.1.0",
   "private": true,
+  "description": "A desktop and browser workspace for OhMyPi coding agents",
+  "author": "bitnosis",
+  "main": "desktop/main.cjs",
   "type": "module",
-  "bin": { "omp-workspace": "launch.mjs" },
+  "bin": {
+    "omp-workspace": "launch.mjs"
+  },
   "scripts": {
+    "desktop": "npm run build && electron .",
+    "desktop:pack": "npm run build && electron-builder --dir",
+    "desktop:dist": "npm run build && electron-builder --publish never",
     "launch": "node launch.mjs",
     "shortcuts": "node scripts/create-shortcuts.mjs",
     "dev": "node server.mjs --dev",
@@ -13,12 +21,20 @@
     "check": "svelte-check --fail-on-warnings",
     "test": "node --test tests/*.test.mjs"
   },
-  "engines": { "node": ">=22.12" },
-  "dependencies": { "dompurify": "3.4.17", "marked": "18.1.2" },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "dependencies": {
+    "dompurify": "3.4.17",
+    "marked": "18.1.2",
+    "yaml": "2.9.1"
+  },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "7.3.1",
     "@tailwindcss/vite": "4.3.3",
     "daisyui": "5.7.50",
+    "electron": "45.1.0",
+    "electron-builder": "26.18.0",
     "svelte": "5.57.3",
     "svelte-check": "4.7.7",
     "tailwindcss": "4.3.3",

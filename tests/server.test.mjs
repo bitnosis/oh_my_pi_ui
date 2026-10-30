@@ -43,6 +43,10 @@ else respond({});});`);
     await call('/api/rpc',{connectionId:first.id,command:{type:'get_tree'}});
     assert.equal((await post('/api/file',{folder:project,path:'../mock.mjs'})).status,400);
     assert.equal((await post('/api/start',{folder:join(dir,'missing')})).status,400);
-    await call('/api/stop',{connectionId:first.id});await call('/api/stop',{connectionId:second.id});
+    await call('/api/stop',{connectionId:second.id});
+    // Desktop quit must drain streams and stop its remaining agent before exiting.
+    const exited=once(child,'exit');
+    await call('/api/shutdown');
+    await Promise.race([exited,new Promise((_,reject)=>setTimeout(()=>reject(Error('Workspace did not stop its agents')),9000).unref())]);
   }finally{for(const controller of controllers)controller.abort();child.kill('SIGINT');}
 });

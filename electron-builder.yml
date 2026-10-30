@@ -1,0 +1,26 @@
+appId: com.bitnosis.ohmypiui
+productName: OhMyPi-UI
+directories:
+  output: release
+files:
+  - desktop/**
+  - dist/**
+  - server.mjs
+  - server/**
+  - package.json
+asar: true
+artifactName: '${productName}-${version}-${os}-${arch}.${ext}'
+win:
+  target: nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+mac:
+  category: public.app-category.developer-tools
+  target: [dmg, zip]
+linux:
+  category: Development
+  target: [AppImage, deb]
+  maintainer: bitnosis

@@ -1,0 +1,27 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {promises as fs} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import {runProcess} from '../server/platform.mjs';
+import {gitStatus,gitDiff,gitChange} from '../server/git.mjs';
+test('Git view handles initial commits, staging, split diff inputs and stale changes',async t=>{
+  const folder=await fs.mkdtemp(join(tmpdir(),'omp-git-view-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
+  const git=(args)=>runProcess('git',['-C',folder,...args]);
+  await git(['init']);await git(['config','user.name','Fixture']);await git(['config','user.email','fixture@example.invalid']);
+  const path='file with spaces.txt';await fs.writeFile(join(folder,path),'before\n');
+  let status=await gitStatus(folder);assert.equal(status.files[0].x,'?');assert.match((await gitDiff(folder,path)).text,/\+before/);
+  status=await gitChange(folder,{action:'stage',path,revision:status.revision});assert.equal(status.files[0].staged,true);
+  status=await gitChange(folder,{action:'unstage',path,revision:status.revision});assert.equal(status.files[0].x,'?');
+  status=await gitChange(folder,{action:'stage',path,revision:status.revision});
+  status=await gitChange(folder,{action:'commit',revision:status.revision,message:'Fixture initial commit'});assert.equal(status.files.length,0);
+  await fs.writeFile(join(folder,path),'after\n');status=await gitStatus(folder);
+  const diff=await gitDiff(folder,path);assert.match(diff.text,/-before/);assert.match(diff.text,/\+after/);
+  await fs.writeFile(join(folder,path),'changed again\n');await assert.rejects(gitChange(folder,{action:'stage',path,revision:status.revision}),/Refresh/);
+  status=await gitStatus(folder);await assert.rejects(gitChange(folder,{action:'stage',path:'../escape',revision:status.revision}),/Choose a changed file/);
+  status=await gitChange(folder,{action:'stage',path,revision:status.revision});
+  assert.match((await gitDiff(folder,path,true)).text,/changed again/);
+  status=await gitChange(folder,{action:'unstage',path,revision:status.revision});assert.equal(status.files[0].staged,false);assert.equal(status.files[0].unstaged,true);
+  await fs.rm(join(folder,path));status=await gitStatus(folder);
+  status=await gitChange(folder,{action:'stage',path,revision:status.revision});assert.equal(status.files[0].x,'D');
+});

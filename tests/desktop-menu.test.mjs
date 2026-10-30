@@ -1,0 +1,26 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createRequire} from 'node:module';
+const {menuTemplate}=createRequire(import.meta.url)('../desktop/menu.cjs');
+const flatten=items=>items.flatMap(item=>[item,...flatten(item.submenu||[])]);
+test('desktop menus protect session actions and route enabled commands',()=>{
+  const sent=[];
+  const idle=flatten(menuTemplate({},id=>sent.push(id),()=>{},()=>{},'win32'));
+  assert.equal(idle.find(i=>i.label==='New session').enabled,false);
+  assert.equal(idle.find(i=>i.label==='Close session').enabled,false);
+  assert.equal(idle.find(i=>i.label==='Agents').enabled,false);
+  assert.equal(idle.find(i=>i.label==='Cost Breakdown…').enabled,false);
+  assert.equal(idle.find(i=>i.label==='Settings').enabled,true);
+  const live=flatten(menuTemplate({ready:true,hasSession:true,hasFolder:true,canStart:true,busy:true,view:'agents'},id=>sent.push(id),()=>{},()=>{},'win32'));
+  assert.equal(live.find(i=>i.label==='New session').enabled,true);
+  assert.equal(live.find(i=>i.label==='Fork session').enabled,false);
+  assert.equal(live.find(i=>i.label==='Stop response').enabled,true);
+  assert.equal(live.find(i=>i.label==='Cost Breakdown…').enabled,true);
+  live.find(i=>i.label==='Cost Breakdown…').click();
+  assert.equal(live.find(i=>i.label==='Agents').checked,true);
+  live.find(i=>i.label==='Close session').click();
+  live.find(i=>i.label==='Choose theme…').click();
+  live.find(i=>i.label==='Settings').click();
+  assert.deepEqual(sent,['costs','close','themes','view:settings']);
+  assert.equal(menuTemplate({},()=>{},()=>{},()=>{},'darwin')[0].label,'OhMyPi-UI');
+});

@@ -1,7 +1,7 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {emptyConversation,reduceEvent} from '../src/lib/conversation.js';
-import {themeVariables} from '../src/lib/theme.js';
+import {builtInThemes,themeBackground,themeBackgrounds,themeVariables} from '../src/lib/theme.js';
 
 test('streamed response finishes without duplicated text; refresh replay is stable',()=>{
   const events=[
@@ -26,4 +26,10 @@ test('all theme roles share the chosen hue, including neutral white and black',(
   assert.match(themeVariables('#0000ff')['--color-primary'],/^hsl\(240 /);
   for(const color of ['#ffffff','#000000'])assert.equal(themeVariables(color)['--color-base-100'],'hsl(0 0% 9%)');
   assert.equal(themeVariables('#000000')['--logo-start'],'hsl(28 0% 62%)');
+});
+test('chat backgrounds exist only for themes that opt in',()=>{
+  assert.equal(themeBackground('dark'),null);
+  assert.equal(themeBackground('custom'),null);
+  assert.deepEqual(themeBackground('halloween'),{image:'/backgrounds/halloween.jpg',opacity:0.7});
+  for(const name of Object.keys(themeBackgrounds))assert.ok(builtInThemes.includes(name));
 });

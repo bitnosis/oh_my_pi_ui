@@ -1,0 +1,34 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {promises as fs} from 'node:fs';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import YAML from 'yaml';
+import {saveDefinition,parseDefinition,listDefinitions,agentSettings,saveAgentSettings} from '../server/agent-catalog.mjs';
+const input={scope:'project',name:'fixture-reviewer',description:'Review changes',prompt:'Check for bugs.',model:'@slow',tools:'none',spawns:'',thinking:'high',blocking:false,readSummarize:true,create:true};
+test('native definitions preserve opaque fields, reject stale edits and invalid names',async t=>{
+  const folder=await fs.mkdtemp(join(tmpdir(),'omp-agents-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
+  const result=await saveDefinition({...input,folder});
+  let text=await fs.readFile(result.path,'utf8');assert.deepEqual(parseDefinition(text).fields.tools,[]);
+  text=text.replace('name:', 'output:\n  type: object\nname:');await fs.writeFile(result.path,text);
+  const bundle=join(folder,'bundle');await fs.mkdir(bundle);
+  await fs.writeFile(join(bundle,'fixture-reviewer.md'),text.replace('Review changes','Bundled version'));
+  await fs.writeFile(join(bundle,'broken.md'),'not frontmatter');
+  const catalog=await listDefinitions({folder,bundledDir:bundle,settings:{}});
+  const agent=catalog.agents.find(a=>a.name===input.name);assert.equal(agent.source,'project');assert.equal(agent.description,'Review changes');assert.equal(catalog.warnings.length,1);
+  await saveDefinition({...input,folder,create:false,revision:agent.revision,prompt:'Updated instructions'});
+  assert.deepEqual(parseDefinition(await fs.readFile(result.path,'utf8')).fields.output,{type:'object'});
+  await assert.rejects(saveDefinition({...input,folder,create:false,revision:agent.revision}),/changed/);
+  for(const name of ['../escape','main','sub','constructor'])await assert.rejects(saveDefinition({...input,folder,name}),/agent name/);
+});
+test('settings retain other agents and unrelated config, with stale-write protection',async t=>{
+  const folder=await fs.mkdtemp(join(tmpdir(),'omp-agent-settings-'));t.after(()=>fs.rm(folder,{recursive:true,force:true}));
+  await fs.mkdir(join(folder,'.omp'));const path=join(folder,'.omp','config.yml');
+  await fs.writeFile(path,'# Keep this comment\nextendedContext: true\ntask:\n  agentModelOverrides:\n    other: provider/other\n');
+  const args={folder,scope:'project',name:input.name};const state=await agentSettings(args);
+  await saveAgentSettings({...args,revision:state.revision,values:{enabled:false,model:'provider/model',budget:0,tier:'none',threshold:'80%'}});
+  const text=await fs.readFile(path,'utf8'),data=YAML.parse(text);assert.match(text,/Keep this comment/);assert.equal(data.extendedContext,true);assert.equal(data.task.agentModelOverrides.other,'provider/other');assert.equal(data.task.agentSoftRequestBudget[input.name],0);assert.deepEqual(data.task.disabledAgents,[input.name]);
+  await assert.rejects(saveAgentSettings({...args,revision:state.revision,values:{enabled:true}}),/changed/);
+  const fresh=await agentSettings(args);await assert.rejects(saveAgentSettings({...args,revision:fresh.revision,values:{enabled:true,budget:-1}}),/non-negative/);
+  assert.equal(await fs.readFile(path,'utf8'),text);
+});
