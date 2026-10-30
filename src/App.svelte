@@ -38,7 +38,7 @@
     sendPrompt,
   } from "./lib/workspace.svelte.js";
   import { preferences, patchPreferences } from "./lib/preferences.svelte.js";
-  import { attachedAgent, clearAttachedAgent } from "./lib/attached-agent.svelte.js";
+  import { attachedAgents, removeAttachedAgent } from "./lib/attached-agent.svelte.js";
   import { withAgentContext } from "./lib/agent-context.js";
   import AgentSprite from "./components/AgentSprite.svelte";
 
@@ -160,7 +160,7 @@
     sending = true;
     const result = await attempt(() =>
       sendPrompt(
-        withAgentContext(prompt, attachedAgent.name),
+        withAgentContext(prompt, attachedAgents.names),
         w.active.busy ? behavior : undefined,
         attachments.map((a) => a.content),
       ),
@@ -440,7 +440,7 @@
   </aside>
   <main class="workspace-main flex min-h-0 min-w-0 flex-col">
     <HomeLogoBackground/>
-    <header class="workspace-header">
+    {#if w.active}<header class="workspace-header">
       <div class="min-w-0 flex-1">
         {#if renaming}<form
             class="flex gap-2"
@@ -502,7 +502,7 @@
             disabled={w.active.closed}>Close session</button
           >{/if}
       </div>
-    </header>
+    </header>{/if}
     <NotificationBar/>
     {#if w.notice}<div class="workspace-notice" role="alert">
         <span class="whitespace-pre-wrap">{w.notice}</span><button
@@ -612,7 +612,7 @@
                 class="mb-3 flex flex-wrap items-center gap-2 text-xs"
               >
                 <ModelMenu /><ReasoningMenu
-                />{#if attachedAgent.name}<span class="composer-agent" title={`Attached agent ${attachedAgent.name}`}><AgentSprite name={attachedAgent.name} size={22} /><button type="button" class="composer-agent-clear" aria-label={`Remove ${attachedAgent.name}`} onclick={clearAttachedAgent}>×</button></span>{/if}{#if w.state.contextUsage}<ContextUsage
+                />{#each attachedAgents.names as name (name)}<span class="composer-agent" title={`Attached agent ${name}`}><AgentSprite name={name} size={36} /><span class="composer-agent-name">{name}</span><button type="button" class="composer-agent-clear" aria-label={`Remove ${name}`} onclick={() => removeAttachedAgent(name)}>×</button></span>{/each}{#if w.state.contextUsage}<ContextUsage
                     onCostBreakdown={() => costBreakdown?.show()}
                   />{/if}<button
                   class="btn btn-ghost btn-xs"

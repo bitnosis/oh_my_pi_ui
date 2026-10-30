@@ -121,8 +121,10 @@ body { margin:0; background:var(--color-base-100); color:var(--color-base-conten
 .model-option:focus-visible{outline:2px solid var(--color-primary);outline-offset:2px}
 .model-assignees{display:flex;flex:1 1 auto;flex-wrap:wrap;align-items:center;gap:2px;min-width:0}
 .model-option .model-assignees{flex:0 0 auto;margin-left:auto;flex-wrap:nowrap;justify-content:flex-end}
-.composer-agent{display:inline-flex;align-items:center;gap:2px;height:24px;padding-right:2px;border:1px solid var(--theme-border);border-radius:999px;background:var(--color-base-200)}
-.composer-agent-clear{border:0;background:none;color:var(--theme-muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px}
+.composer-agent{display:inline-flex;align-items:center;gap:2px;height:22px;padding:0 1px 0 0;overflow:visible;border:1px solid var(--theme-border);border-radius:999px;background:var(--color-base-200)}
+.composer-agent .agent-sprite{align-self:flex-end;margin-bottom:-1px;margin-left:-6px}
+.composer-agent-name{max-width:12rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:600;line-height:1}
+.composer-agent-clear{border:0;background:none;color:var(--theme-muted);cursor:pointer;font-size:14px;line-height:1;padding:0 4px 0 1px}
 .agent-color{position:relative;display:block;width:1.15rem;height:1.15rem;flex-shrink:0;border:1.5px solid var(--theme-border);border-radius:50%;overflow:hidden;cursor:pointer}
 .agent-color input{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;border:0;opacity:0;cursor:pointer}
 .agent-color:focus-within{outline:2px solid var(--color-primary);outline-offset:2px}

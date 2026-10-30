@@ -1,14 +1,15 @@
 <script>
   import AgentSprite from "./AgentSprite.svelte";
 
-  let {agents = [], size = 28, onpick = undefined} = $props();
+  let {agents = [], size = 28, onpick = undefined, selected = []} = $props();
+  const picked = $derived(new Set(selected.map((name) => String(name).toLowerCase())));
 </script>
 
 {#if agents.length}
   <span class="model-assignees">
     {#each agents as agent (agent.name)}
       {#if onpick}
-        <button type="button" class="model-avatar" class:fallback={agent.fallback} title={agent.fallback ? `${agent.name} (fallback)` : agent.name} aria-label={`Use ${agent.name} with this model`} onclick={(event) => { event.stopPropagation(); onpick(agent); }}>
+        <button type="button" class="model-avatar" class:fallback={agent.fallback} class:picked={picked.has(agent.name.toLowerCase())} title={agent.fallback ? `${agent.name} (fallback)` : agent.name} aria-label={picked.has(agent.name.toLowerCase()) ? `Remove ${agent.name}` : `Add ${agent.name}`} aria-pressed={picked.has(agent.name.toLowerCase())} onclick={(event) => { event.stopPropagation(); onpick(agent); }}>
           <AgentSprite name={agent.name} {size} />
         </button>
       {:else}
@@ -34,6 +35,10 @@
   }
   button.model-avatar:hover {
     transform: translateY(-1px);
+  }
+  button.model-avatar.picked {
+    border-radius: 10px;
+    box-shadow: 0 0 0 2px var(--color-primary);
   }
   .model-avatar.fallback {
     opacity: 0.55;

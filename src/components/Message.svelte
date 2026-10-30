@@ -61,7 +61,7 @@
     <div class="markdown" bind:this={root} onclick={copySection}>{@html markdown(message.text)}</div>
   {:else}
     {@const spoken = splitAgentContext(message.text)}
-    <div class="whitespace-pre-wrap break-words">{#if spoken.agent}<span class="inline-agent" title={spoken.agent}><AgentSprite name={spoken.agent} size={28} /></span>{/if}{spoken.text}</div>
+    <div class="whitespace-pre-wrap break-words">{#each spoken.agents as name (name)}<span class="inline-agent" title={name}><AgentSprite name={name} size={28} /></span>{/each}{spoken.text}</div>
     {#if message.details||message.result}<details class="mt-2 text-xs"><summary class="cursor-pointer">Details</summary>{#if message.details}<pre class="my-3 overflow-auto whitespace-pre-wrap">{message.details}</pre>{/if}{#if message.result}<pre class="max-h-80 overflow-auto whitespace-pre-wrap">{message.result}</pre>{/if}</details>{/if}
   {/if}
 </article>
