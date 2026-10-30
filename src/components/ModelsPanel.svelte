@@ -4,6 +4,7 @@
   import {workspace,attempt,rpc,api} from '../lib/workspace.svelte.js';
   import {agentsForModels,assigneesFor,rolesForModels} from '../lib/model-agents.js';
   import AgentMarks from './AgentMarks.svelte';
+  import AgentSprite from './AgentSprite.svelte';
   import AgentIcon from './AgentIcon.svelte';
   import {agentColor} from '../lib/agent-appearance.svelte.js';
   const selectionInk=name=>{
@@ -18,7 +19,7 @@
   const cached=$derived(currentCatalog());
   const models=$derived(cached.models),providers=$derived(cached.providers),levels=$derived(cached.levels),agents=$derived(cached.agents),roles=$derived(cached.roles);
   let filter=$state(''),changing=$state(false);
-  let assignmentDialog,assignmentModel=$state(null),assignmentScope=$state('user'),assignmentRows=$state([]),assignmentBusy=$state(false),assignmentError=$state('');
+  let assignmentDialog,assignmentModel=$state(null),assignmentScope=$state('user'),assignmentRows=$state([]),assignmentBusy=$state(false),assigning=$state({}),assignmentError=$state('');
   let roleDialog,roleModel=$state(null),roleScope=$state('user'),roleState=$state(null),roleBusy=$state(false),roleError=$state(''),customRole=$state('');
   const builtInRoles=['default','smol','slow','vision','plan','commit','tiny','memory','task','advisor','widget','image','web','speech','dictation','judge'];
   const roleNames=$derived([...new Set([...builtInRoles,...Object.keys(roles),...Object.keys(roleState?.roles||{})])]);
@@ -44,11 +45,16 @@
   }
   async function openAssignments(model){assignmentModel=model;await tick();assignmentDialog.showModal();await assignmentList();}
   async function assign(agent,enabled){
-    assignmentBusy=true;assignmentError='';
+    if(assigning[agent.name])return;
+    assigning[agent.name]=true;assignmentError='';
+    const selector=assignmentModel.provider+'/'+assignmentModel.id;
+    const previous=agent.settings.values.model??null;
+    agent.settings.values.model=enabled?selector:null;
     try{
-      await api('/api/agent-definitions/settings/save',{folder:workspace.folder,profile:workspace.profile,scope:assignmentScope,name:agent.name,revision:agent.settings.revision,values:{...agent.settings.values,model:enabled?assignmentModel.provider+'/'+assignmentModel.id:null}});
-      await catalog();await assignmentList();
-    }catch(e){assignmentError=e.message;}finally{assignmentBusy=false;}
+      await api('/api/agent-definitions/settings/save',{folder:workspace.folder,profile:workspace.profile,scope:assignmentScope,name:agent.name,revision:agent.settings.revision,values:{...agent.settings.values,model:agent.settings.values.model}});
+      agent.settings=await api('/api/agent-definitions/settings',{folder:workspace.folder,profile:workspace.profile,scope:assignmentScope,name:agent.name});
+      catalog();
+    }catch(e){agent.settings.values.model=previous;assignmentError=e.message;}finally{delete assigning[agent.name];}
   }
   async function catalog(){invalidateCatalog();return refreshCatalog({force:true,resources:['definitions']});}
   async function load(force=false,showAnimation=false){loading=true;if(showAnimation)refreshing=true;try{await attempt(()=>refreshCatalog({force,resources:['models','definitions','providers','levels']}));}finally{loading=false;if(showAnimation)refreshing=false;}}
@@ -75,8 +81,8 @@
   <div class="grid gap-3 md:grid-cols-2">{#each listed as model (model.provider+'/'+model.id)}<article class="card min-w-0 border border-[var(--theme-border)] bg-base-200 p-4 text-left" class:model-active={active(model)}>
     <div class="flex items-center gap-2"><ModelLogo {model}/><strong class="min-w-0 flex-1 truncate text-sm">{model.name||model.id}</strong><input type="checkbox" class="toggle toggle-sm toggle-primary shrink-0" aria-label={'Use '+(model.name||model.id)+' as active model'} checked={active(model)} disabled={changing||workspace.active?.busy} onclick={e=>{if(active(model))e.preventDefault();}} onchange={()=>choose(model)}/></div>
     <span class="muted mt-2 text-xs">{model.provider} · {model.contextWindow?Intl.NumberFormat().format(model.contextWindow)+' context':''}{model.reasoning?' · Reasoning':''}</span>
-    <div class="mt-3 flex items-start justify-between gap-3 border-t border-[var(--theme-border)] pt-2">
-      <div class="flex min-w-0 flex-1 items-center gap-1"><button class="btn btn-ghost btn-xs shrink-0 tooltip tooltip-top" data-tip="Assign or unassign agents" aria-label={'Assign agents to '+(model.name||model.id)} title="Assign or unassign agents" onclick={()=>openAssignments(model)}><AgentIcon/></button><AgentMarks agents={assigneesFor(model,assigned)}/></div>
+    <div class="mt-3 flex items-center justify-between gap-3 border-t border-[var(--theme-border)] pt-2">
+      <div class="flex min-w-0 flex-1 items-center gap-1"><button class="btn btn-ghost btn-xs shrink-0 tooltip tooltip-top" data-tip="Assign or unassign agents" aria-label={'Assign agents to '+(model.name||model.id)} title="Assign or unassign agents" onclick={()=>openAssignments(model)}><AgentIcon/></button><AgentMarks agents={assigneesFor(model,assigned)} size={40}/></div>
       <div class="flex min-w-0 flex-1 items-center justify-end gap-1"><div class="flex flex-wrap justify-end gap-1">{#each assigneesFor(model,roleAssignments) as role}<span class="badge badge-outline badge-xs normal-case" title={'@'+role.name+(role.fallback?' (fallback)':'')}>@{role.name.toLowerCase()}</span>{/each}</div><button class="btn btn-ghost btn-xs shrink-0 tooltip tooltip-top" data-tip="Assign model roles such as @smol and @task" aria-label={'Assign roles to '+(model.name||model.id)} title="Assign or unassign model roles" onclick={()=>openRoles(model)}><RoleIcon/></button></div>
     </div>
   </article>{/each}</div>
@@ -88,9 +94,9 @@
     <label class="mt-4 block text-xs" for="model-assignment-scope">Save assignments in</label><select id="model-assignment-scope" class="select select-sm mt-1 w-full" disabled={assignmentBusy} bind:value={assignmentScope} onchange={assignmentList}><option value="user">Selected profile</option><option value="project">This project</option></select>
     <p class="muted my-4 text-xs">Check an agent to use this model for future launches. Unchecking clears its model override in this scope and restores its inherited routing. Project settings take precedence over profile settings.</p>
     {#if assignmentError}<p role="alert" class="mb-3 text-sm text-error">{assignmentError}</p>{/if}
-    {#if assignmentBusy}<p role="status" class="muted mb-3 text-xs">Updating assignments…</p>{/if}
-    <div class="max-h-80 space-y-2 overflow-y-auto">{#each assignmentRows as agent}<label class="flex items-center gap-3 rounded-lg bg-base-200 p-3"><input class="checkbox checkbox-primary checkbox-sm" style:--input-color={agentColor(agent.name)||'var(--color-primary)'} style:color={selectionInk(agent.name)} type="checkbox" checked={agent.settings.values.model===assignmentModel.provider+'/'+assignmentModel.id} disabled={assignmentBusy} onchange={e=>assign(agent,e.currentTarget.checked)}/><span class="min-w-0"><strong class="block text-sm uppercase">{agent.name}</strong><span class="muted block text-xs">{agent.enabled?'Enabled':'Disabled'} · {agent.settings.values.model||'Inherited routing'}</span></span></label>{/each}</div>
-    <div class="modal-action"><button class="btn btn-sm" disabled={assignmentBusy} onclick={()=>assignmentDialog.close()}>Done</button></div>
+    {#if assignmentBusy && !assignmentRows.length}<p role="status" class="muted mb-3 text-xs">Loading agents…</p>{/if}
+    <div class="max-h-80 space-y-2 overflow-y-auto">{#each assignmentRows as agent (agent.name)}<label class="flex items-center gap-3 rounded-lg bg-base-200 p-3"><input class="checkbox checkbox-primary checkbox-sm" style:--input-color={agentColor(agent.name)||'var(--color-primary)'} style:color={selectionInk(agent.name)} type="checkbox" checked={agent.settings.values.model===assignmentModel.provider+'/'+assignmentModel.id} disabled={assigning[agent.name]} onchange={e=>assign(agent,e.currentTarget.checked)}/><AgentSprite name={agent.name} size={40}/><span class="min-w-0"><strong class="block text-sm uppercase">{agent.name}</strong><span class="muted block text-xs">{agent.enabled?'Enabled':'Disabled'} · {agent.settings.values.model||'Inherited routing'}</span></span></label>{/each}</div>
+    <div class="modal-action"><button class="btn btn-sm" onclick={()=>assignmentDialog.close()}>Done</button></div>
   </div>{/if}
 </dialog>
 <dialog bind:this={roleDialog} class="modal context-modal" onclose={()=>{roleModel=null;}}>

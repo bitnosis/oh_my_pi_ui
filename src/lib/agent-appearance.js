@@ -26,6 +26,11 @@ export function readAppearance(storage) {
   }
 }
 
+export function lightenColor(color) {
+  if (typeof color !== "string" || !colorPattern.test(color)) return "";
+  return `color-mix(in srgb, ${color.toLowerCase()} 85%, white)`;
+}
+
 export function writeAppearance(map, storage) {
   const clean = {};
   for (const [name, value] of Object.entries(map || {})) {

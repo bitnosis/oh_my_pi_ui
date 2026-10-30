@@ -52,7 +52,7 @@ export class AgentConnection extends EventEmitter {
   publish(event){
     const bytes=Buffer.byteLength(JSON.stringify(event));
     // Large completed snapshots are fetched from the paged transcript endpoint instead.
-    if(event.type!=='response'){
+    if(event.type!=='response'&&!event.type?.startsWith('dictation_')){
       if(bytes<2*1024*1024){this.history.push({event,bytes});this.historyBytes+=bytes;while(this.historyBytes>12*1024*1024||this.history.length>3000){this.historyBytes-=this.history.shift().bytes;}}
     }
     this.emit('event',event);

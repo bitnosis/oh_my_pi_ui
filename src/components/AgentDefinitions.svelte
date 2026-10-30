@@ -7,7 +7,12 @@
     api,
     showToast,
   } from "../lib/workspace.svelte.js";
-  import { agentColor, setAgentColor } from "../lib/agent-appearance.svelte.js";
+  import { agentColor, appearanceFor, setAgentColor, setAgentIcon } from "../lib/agent-appearance.svelte.js";
+  import { lightenColor } from "../lib/agent-appearance.js";
+  import AgentSprite from "./AgentSprite.svelte";
+  import { describeAgentStatus } from "../lib/agent-status.js";
+  import { fantasyCount, robotCount, spriteChoice } from "../lib/robots.js";
+  let { liveAgents = [] } = $props();
   const cached=$derived(currentCatalog());
   const agents=$derived(cached.agents),models=$derived(cached.models),warnings=$derived(cached.warnings);
   let search = $state(""),
@@ -15,9 +20,11 @@
     loading = $state(false),
     refreshing = $state(false),
     saving = $state(false),
+    savingNames = $state({}),
     definition = $state(null),
-    settings = $state(null);
-  let editor, settingsDialog;
+    settings = $state(null),
+    appearanceName = $state("");
+  let editor, settingsDialog, appearanceDialog;
   const csv = (value) =>
     Array.isArray(value)
       ? value.join(", ")
@@ -59,11 +66,26 @@
     load(false);
     modelList();
   });
+  const inheritedModel = /^(?:@)?(?:auto|default|inherit|parent)$/i;
+  function chosenModel(agent) {
+    const selectors = Array.isArray(agent.modelSelectors) ? agent.modelSelectors : [];
+    return selectors.some((selector) => {
+      const value = String(selector || "").trim();
+      return value && !inheritedModel.test(value);
+    });
+  }
+  function workStatus(agent) {
+    const name = String(agent.name || "").toLowerCase();
+    return describeAgentStatus({
+      enabled: agent.enabled !== false,
+      sessionReady: Boolean(w.active?.ready && !w.active.closed && w.streamOnline),
+      lives: liveAgents.filter((item) => String(item.agent || item.name || "").toLowerCase() === name),
+    });
+  }
   function edit(agent) {
     error = "";
     definition = {
       name: agent?.name || "",
-      color: agentColor(agent?.name || "") || "",
       description: agent?.description || "",
       prompt: agent?.prompt || "",
       model: csv(agent?.fields.model),
@@ -95,9 +117,7 @@
     saving = true;
     error = "";
     try {
-      const { color, ...fields } = definition;
-      await api("/api/agent-definitions/save", { ...payload(), ...fields });
-      setAgentColor(fields.name, color);
+      await api("/api/agent-definitions/save", { ...payload(), ...definition });
       editor.close();
       definition = null;
       showToast(
@@ -109,6 +129,10 @@
     } finally {
       saving = false;
     }
+  }
+  function openAppearance(name) {
+    appearanceName = name;
+    appearanceDialog.showModal();
   }
   async function configure(agent) {
     error = "";
@@ -165,8 +189,10 @@
     }
   }
   async function toggleAgent(agent, enabled) {
-    if (saving) return;
-    saving = true;
+    if (savingNames[agent.name]) return;
+    savingNames[agent.name] = true;
+    const previous = agent.enabled;
+    agent.enabled = enabled;
     error = "";
     const context = payload();
     try {
@@ -182,7 +208,8 @@
         revision: current.revision,
         values: { ...current.values, enabled },
       });
-      await load();
+      invalidateCatalog();
+      await refreshCatalog({ force: true, resources: ["definitions"] });
       const updated = agents.find((item) => item.name === agent.name);
       showToast(
         updated?.enabled === enabled
@@ -190,9 +217,10 @@
           : "Saved to the selected profile. A project override controls this agent’s current availability.",
       );
     } catch (e) {
+      agent.enabled = previous;
       error = e.message;
     } finally {
-      saving = false;
+      delete savingNames[agent.name];
     }
   }
 </script>
@@ -227,7 +255,9 @@
   />
   {#if refreshing}<RobotLoader />{:else}
   <div class="grid items-stretch gap-3 lg:grid-cols-2">
-    {#each filtered as agent}
+    {#each filtered as agent (agent.name)}
+      {@const routeColor = chosenModel(agent) ? lightenColor(agentColor(agent.name)) : ""}
+      {@const status = workStatus(agent)}
       <article
         class="flex h-full flex-col rounded-box border border-[var(--theme-border)] bg-base-200 p-4"
         class:opacity-30={!agent.enabled}
@@ -250,36 +280,27 @@
                 class="toggle toggle-primary toggle-xs"
                 aria-label={`${agent.enabled ? "Disable" : "Enable"} ${agent.name}`}
                 checked={agent.enabled}
-                disabled={saving || loading}
+                disabled={savingNames[agent.name]}
                 onchange={(event) =>
                   toggleAgent(agent, event.currentTarget.checked)}
               />
             </label>
           </div>
         </div>
+        <p class="agent-status {status.key}" title={status.detail || status.label}>
+          <span class="agent-status-dot" aria-hidden="true"></span>{status.label}
+        </p>
         <p class="muted my-3 text-sm">{agent.description}</p>
         <p class="text-xs">
           <span class="muted block">Model routing:</span><span
             class="mt-1 block break-all font-mono"
+            style:color={routeColor || null}
             >{agent.modelRouting.length
               ? agent.modelRouting.join(" → fallback: ")
               : "Parent session / OhMyPi default"}</span
           >
         </p>
-        <div class="mt-auto flex items-center gap-2 pt-4">
-          <label
-            class="agent-color tooltip tooltip-top"
-            data-tip="Color"
-            style:background={agentColor(agent.name) || "#767676"}
-          >
-            <input
-              type="color"
-              aria-label={`Color for ${agent.name}`}
-              value={agentColor(agent.name) || "#767676"}
-              oninput={(event) =>
-                setAgentColor(agent.name, event.currentTarget.value)}
-            />
-          </label>
+        <div class="mt-auto flex items-end gap-2 pt-4">
           <button
             class="btn btn-ghost btn-square tooltip tooltip-top"
             data-tip="Model & settings"
@@ -331,6 +352,9 @@
                 d="M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"
               />
             </svg>
+          </button>
+          <button type="button" class="appearance-trigger ml-auto" aria-label={`Choose the robot and color for ${agent.name}`} onclick={() => openAppearance(agent.name)}>
+            <AgentSprite name={agent.name} size={72} />
           </button>
         </div>
       </article>
@@ -395,34 +419,6 @@
                 >Selected profile</option
               ></select
             ></label
-          >
-        </div>
-        <div class="flex flex-wrap items-center gap-3">
-          <label class="flex items-center gap-2 text-xs"
-            >Agent color
-            <input
-              type="color"
-              class="h-8 w-10 cursor-pointer rounded border border-[var(--theme-border)] bg-transparent p-0.5"
-              aria-label="Agent color"
-              value={definition.color || "#767676"}
-              oninput={(e) => {
-                definition.color = e.currentTarget.value;
-              }}
-            />
-          </label>
-          <span
-            class="badge badge-outline badge-sm"
-            style:color={definition.color || null}
-            style:border-color={definition.color || null}
-            >{definition.name || "New agent"}</span
-          >
-          <button
-            type="button"
-            class="btn btn-ghost btn-xs"
-            disabled={!definition.color}
-            onclick={() => {
-              definition.color = "";
-            }}>Use default</button
           >
         </div>
         <label class="text-xs"
@@ -607,3 +603,116 @@
       </form>
     </div>{/if}
 </dialog>
+<dialog bind:this={appearanceDialog} class="modal context-modal" onclose={() => { appearanceName = ""; }}>
+  {#if appearanceName}
+    {@const choice = spriteChoice(appearanceName, appearanceFor(appearanceName).icon)}
+    <div class="modal-box max-w-xl">
+      <h2 class="text-xl font-semibold">{appearanceName}</h2>
+      <p class="muted my-3 text-xs">Pick a robot or a fantasy character, then a color. Robot color tints the whole figure. Character color tints outfits only, and skin, scales, and fur stay as they are.</p>
+      <label class="mb-4 flex items-center gap-3 text-sm">
+        Color
+        <input
+          type="color"
+          aria-label={`Color for ${appearanceName}`}
+          value={agentColor(appearanceName) || "#767676"}
+          oninput={(event) => setAgentColor(appearanceName, event.currentTarget.value)}
+        />
+      </label>
+      <div class="max-h-[62vh] space-y-4 overflow-auto pr-1">
+        <section>
+          <h3 class="mb-2 text-sm font-semibold">Robots</h3>
+          <div class="grid grid-cols-6 gap-1">
+            {#each Array.from({length: robotCount}, (_, index) => index) as index (index)}
+              <button
+                type="button"
+                class="robot-choice"
+                class:selected={choice.set === "robot" && choice.index === index}
+                aria-label={`Robot ${index + 1}`}
+                aria-pressed={choice.set === "robot" && choice.index === index}
+                onclick={() => setAgentIcon(appearanceName, `robot-${index}`)}
+              >
+                <AgentSprite icon={`robot-${index}`} color={agentColor(appearanceName)} size={52} />
+              </button>
+            {/each}
+          </div>
+        </section>
+        <section>
+          <h3 class="mb-2 text-sm font-semibold">Fantasy</h3>
+          <div class="grid grid-cols-6 gap-1">
+            {#each Array.from({length: fantasyCount}, (_, index) => index) as index (index)}
+              <button
+                type="button"
+                class="robot-choice"
+                class:selected={choice.set === "fantasy" && choice.index === index}
+                aria-label={`Fantasy character ${index + 1}`}
+                aria-pressed={choice.set === "fantasy" && choice.index === index}
+                onclick={() => setAgentIcon(appearanceName, `fantasy-${index}`)}
+              >
+                <AgentSprite icon={`fantasy-${index}`} color={agentColor(appearanceName)} size={52} />
+              </button>
+            {/each}
+          </div>
+        </section>
+      </div>
+      <div class="modal-action">
+        <button type="button" class="btn btn-sm" onclick={() => appearanceDialog.close()}>Done</button>
+      </div>
+    </div>
+  {/if}
+</dialog>
+
+<style>
+  .agent-status {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.45rem;
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    color: var(--theme-muted);
+  }
+  .agent-status-dot {
+    width: 7px;
+    height: 7px;
+    flex-shrink: 0;
+    border-radius: 50%;
+    background: currentColor;
+  }
+  .agent-status.ready,
+  .agent-status.idle {
+    color: #3d9a5b;
+  }
+  .agent-status.running {
+    color: var(--color-primary);
+  }
+  .agent-status.running .agent-status-dot {
+    box-shadow: 0 0 0 3px color-mix(in oklab, currentColor 28%, transparent);
+  }
+  .agent-status.aborted {
+    color: var(--color-error);
+  }
+  .appearance-trigger {
+    border: 0;
+    padding: 0;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 12px;
+  }
+  .appearance-trigger:hover,
+  .appearance-trigger:focus-visible {
+    background: color-mix(in oklab, var(--color-primary) 14%, transparent);
+  }
+  .robot-choice {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 10px;
+    border: 2px solid transparent;
+    padding: 2px;
+  }
+  .robot-choice:hover,
+  .robot-choice.selected {
+    border-color: var(--color-primary);
+    background: color-mix(in oklab, var(--color-primary) 12%, transparent);
+  }
+</style>

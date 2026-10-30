@@ -4,6 +4,11 @@ export function messageText(message) {
 
 // A pure event reducer also handles transcript replay after browser refreshes.
 export function reduceEvent(state, event) {
+  const updates = ['reset','hydrate','user_message','message_start','message_update','message_end','tool_execution_start','tool_execution_end','command_output','prompt_result'];
+  if (!updates.includes(event.type)) return state;
+  if (event.type === 'message_update' && !['text_delta','thinking_delta'].includes(event.assistantMessageEvent?.type)) return state;
+  if (['message_start','message_end'].includes(event.type) && event.message?.role !== 'assistant') return state;
+  if (event.type === 'prompt_result' && event.status !== 'error') return state;
   const next = { ...state, messages: [...state.messages] };
   const add = (role, text) => {
     const id = next.nextId++;

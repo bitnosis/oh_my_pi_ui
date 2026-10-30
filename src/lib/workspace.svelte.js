@@ -5,29 +5,47 @@ export const workspace=$state({
   connected:false,initialized:false,notice:'',toast:null,pending:0,overview:{projects:[],sessions:[],running:[],profiles:['default']},
   active:null,state:{},conversation:emptyConversation(),dialogs:[],links:[],view:'chat',folder:'',profile:'default',streamOnline:false,revision:0,
 });
-let token='',events,poll,selection=0,stopSync=()=>{};
+let token='',events,poll,pollGeneration=0,selection=0,stopSync=()=>{};
+const statusFields=['ready','busy','closed','sessionFile','sessionId','name','dialogCount','tasksDone','tasksTotal'];
+function sameModel(left,right){return left?.provider===right?.provider&&left?.id===right?.id&&left?.name===right?.name;}
+function patchSession(target,event){
+  if(!target)return;
+  for(const field of statusFields)if(field in event&&target[field]!==event[field])target[field]=event[field];
+  if('model' in event&&!sameModel(target.model,event.model))target.model=event.model;
+}
+export const dictationEvents=new EventTarget();
 export function showToast(message){workspace.toast={message};}
 export async function api(path,data={}){
   const response=await fetch(path,{method:'POST',headers:{'Content-Type':'application/json','X-App-Token':token},body:JSON.stringify(data)});
   const result=await response.json();if(!response.ok)throw new Error(result.error||'The operation failed.');return result;
 }
 export async function attempt(operation){workspace.notice='';workspace.pending++;try{return await operation();}catch(error){workspace.notice=error.message;return undefined;}finally{workspace.pending--;}}
-export async function refresh(refreshSessions=false){workspace.overview=await api('/api/overview',{refresh:refreshSessions});}
+let overviewRequest;
+export async function refresh(refreshSessions=false){
+  if(overviewRequest){await overviewRequest;if(!refreshSessions)return;}
+  const request=api('/api/overview',{refresh:refreshSessions}).then(result=>{workspace.overview=result;workspace.connected=true;});
+  overviewRequest=request;
+  try{await request;}finally{if(overviewRequest===request)overviewRequest=undefined;}
+}
 export async function initialize(){
-  let disposed=false;
+  const generation=++pollGeneration;
+  clearInterval(poll);
   try{
     const response=await fetch('/config');if(!response.ok)throw new Error('The workspace service is unavailable.');token=(await response.json()).token;
+    if(generation!==pollGeneration)return;
     stopSync();stopSync=connectPreferences(token);
     workspace.connected=true;await refresh();
+    if(generation!==pollGeneration)return;
     try{workspace.folder=localStorage.getItem('omp-folder')||workspace.overview.projects[0]?.folder||'';}catch{}
     const previous=localStorage.getItem('omp-active-connection');const active=workspace.overview.running.find(c=>c.id===previous)||workspace.overview.running[0];
     if(active)await selectConnection(active);
-    poll=setInterval(()=>{if(!disposed)refresh().catch(()=>{workspace.connected=false;});},6000);
-  }catch(error){workspace.notice=error.message;}
-  workspace.initialized=true;
-  return ()=>{disposed=true;clearInterval(poll);events?.close();};
+    if(generation!==pollGeneration)return;
+    poll=setInterval(()=>{if(generation===pollGeneration)refresh().catch(()=>{workspace.connected=false;});},6000);
+  }catch(error){if(generation===pollGeneration)workspace.notice=error.message;}
+  if(generation===pollGeneration)workspace.initialized=true;
+  return ()=>{if(generation===pollGeneration)closeWorkspace();};
 }
-export function closeWorkspace(){clearInterval(poll);events?.close();stopSync();stopSync=()=>{};}
+export function closeWorkspace(){pollGeneration++;clearInterval(poll);events?.close();events=undefined;stopSync();stopSync=()=>{};}
 export async function rpc(type,fields={}){
   const id=workspace.active?.id;if(!id)throw new Error('Start or resume a session first.');
   const result=await api('/api/rpc',{connectionId:id,command:{type,...fields}});
@@ -43,10 +61,14 @@ export async function selectConnection(connection){
   events.onerror=()=>{if(current===selection)workspace.streamOnline=false;};
   events.onmessage=({data})=>{
     if(current!==selection)return;
-    const event=JSON.parse(data);workspace.conversation=reduceEvent(workspace.conversation,event);workspace.revision++;
-    if(event.type==='status'){
-      workspace.active={...workspace.active,...event};
-      workspace.overview.running=workspace.overview.running.map(c=>c.id===connection.id?workspace.active:c);
+    const event=JSON.parse(data);
+    if(event.type.startsWith('dictation_'))dictationEvents.dispatchEvent(new CustomEvent('frame',{detail:{...event,connectionId:connection.id}}));
+    const conversation=reduceEvent(workspace.conversation,event);
+    if(conversation!==workspace.conversation){workspace.conversation=conversation;workspace.revision++;}
+    if(event.type==='status'&&workspace.active?.id===connection.id){
+      patchSession(workspace.active,event);
+      const listed=workspace.overview.running.find(item=>item.id===connection.id);
+      if(listed&&listed!==workspace.active)patchSession(listed,event);
     }
     if(event.type==='state'||(event.type==='response'&&event.command==='get_state'&&event.success))workspace.state=event.data||{};
     if(event.type==='queue_update')workspace.state={...workspace.state,queuedMessages:event.queuedMessages||event};

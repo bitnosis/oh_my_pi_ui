@@ -57,19 +57,7 @@
     budget = $state(""),
     attachments = $state([]),
     quit = $state(false);
-  const views = [
-    ["chat", "Conversation"],
-    ["tree", "Tree"],
-    ["agents", "Agents"],
-    ["models", "Models"],
-    ["files", "Files"],
-    ["worktrees", "Worktrees"],
-    ["git", "Git"],
-    ["settings", "Settings"],
-    ["mcp", "MCP"],
-    ["packages", "Plugins & skills"],
-  ];
-  const tabs = views.filter(([id]) => id !== "tree");
+  const views = ["chat", "tree", "agents", "models", "files", "worktrees", "git", "settings", "mcp", "packages"];
   const sessionViews = new Set(["chat", "tree", "models"]);
   const filteredSessions = $derived(
     w.overview.sessions.filter(
@@ -79,9 +67,10 @@
     ),
   );
   const ready = $derived(Boolean(w.active?.ready && !w.active?.closed));
+  const catalogWatch = $derived([w.connected, w.folder, w.profile, w.active?.id || "", ready].join("\0"));
   $effect(()=>{
-    const scope={folder:w.folder,profile:w.profile,connectionId:w.active?.id,ready:w.active?.ready&&!w.active?.closed};
-    if(w.connected&&scope.folder)untrack(()=>{refreshCatalog({scope}).catch(()=>{});});
+    catalogWatch;
+    if(w.connected && w.folder)untrack(()=>{refreshCatalog().catch(()=>{});});
   });
   onMount(() => {
     let disposed = false;
@@ -120,7 +109,7 @@
     if (action.startsWith("view:")) {
       const view = action.slice(5);
       if (
-        views.some(([id]) => id === view) &&
+        views.includes(view) &&
         (!(sessionViews.has(view) && view !== "chat") || ready) &&
         (!["agents", "files", "worktrees", "git", "mcp"].includes(view) ||
           w.folder)
@@ -163,7 +152,7 @@
       });
   });
   async function submit(event) {
-    event.preventDefault();
+    event?.preventDefault();
     if (!prompt.trim() || sending || !ready) return;
     sending = true;
     const result = await attempt(() =>
@@ -511,18 +500,6 @@
           >{/if}
       </div>
     </header>
-    <nav class="workspace-tabs" aria-label="Workspace sections">
-      {#each tabs as [id, title]}<button
-          class="workspace-tab"
-          class:active={w.view === id || (id === "chat" && w.view === "tree")}
-          disabled={(sessionViews.has(id) && id !== "chat" && !ready) ||
-            (["agents", "files", "worktrees", "git", "mcp"].includes(id) &&
-              !w.folder)}
-          onclick={() => {
-            w.view = id;
-          }}>{title}</button
-        >{/each}
-    </nav>
     <NotificationBar/>
     {#if w.notice}<div class="workspace-notice" role="alert">
         <span class="whitespace-pre-wrap">{w.notice}</span><button
@@ -839,6 +816,7 @@
   <StatusBar
     onContext={() => contextUsage?.show()}
     onCost={() => costBreakdown?.show()}
+    onDictation={(text,{send=false}={})=>{prompt+=(prompt&&!/\s$/.test(prompt)?' ':'')+text;if(send)submit();}}
   />
 </div>
 {#if folderPicker}<FolderPicker

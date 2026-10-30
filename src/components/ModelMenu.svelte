@@ -7,6 +7,7 @@
   let open = $state(false);
   const cached=$derived(currentCatalog());
   const models=$derived(cached.models),agents=$derived(cached.agents),roles=$derived(cached.roles);
+  const available = $derived(Boolean(workspace.connected && workspace.streamOnline && workspace.active?.ready && !workspace.active.closed && models.length));
   let query = $state('');
   let changing = $state(false);
   let loading = $state(false);
@@ -22,6 +23,7 @@
   }
 
   async function toggle() {
+    if (!available) { open = false; return; }
     open = !open;
     if (!open) return;
     query = '';
@@ -37,6 +39,8 @@
     if (saved) open = false;
   }
 
+  $effect(() => { if (!available) open = false; });
+
   $effect(() => {
     if (!open) return;
     const onPointer = event => { if (!root?.contains(event.target)) open = false; };
@@ -51,7 +55,7 @@
 </script>
 
 <div class="model-menu" bind:this={root}>
-  <button type="button" class="model-menu-button btn btn-ghost btn-xs" aria-haspopup="listbox" aria-expanded={open} onclick={toggle}>{label} <span class="muted" aria-hidden="true">▾</span></button>
+  <button type="button" class="model-menu-button btn btn-ghost btn-xs" aria-haspopup="listbox" aria-expanded={open} disabled={!available} onclick={toggle}>{label} <span class="muted" aria-hidden="true">▾</span></button>
   {#if open}
     <div class="model-menu-list" role="listbox" aria-label="Models">
       <input class="input input-xs mb-1 w-full" aria-label="Search models" placeholder="Search models…" bind:value={query}/>

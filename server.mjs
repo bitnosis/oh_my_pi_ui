@@ -19,7 +19,7 @@ const port=Number(process.env.PORT||4320),origin=`http://127.0.0.1:${port}`,toke
 const development=process.argv.includes('--dev');
 const vite=development?await(await import('vite')).createServer({root,server:{middlewareMode:true,hmr:{port:port+1,host:'127.0.0.1'}},appType:'spa'}):null;
 const dist=resolve(root,'dist'),connections=new Map(),streams=new Set();
-const rpcCommands=new Set(['get_state','get_available_models','set_model','cycle_model','get_available_thinking_levels','set_thinking_level','set_fast_mode','set_slow_mode','set_auto_compaction','set_auto_retry','set_steering_mode','set_follow_up_mode','set_interrupt_mode','set_cache_warming','get_session_stats','get_tree','get_entries','get_subagents','get_subagent_messages','cancel_subagent','steer_subagent','get_available_commands','get_login_providers','login','get_logout_accounts','logout','set_session_name','new_session','fork','branch','navigate_tree','set_label','compact','abort','abort_retry','steer','follow_up','remove_queued_message','promote_queued_message','abort_and_restore_queue','get_btw_history','btw','btw_cancel','goal']);
+const rpcCommands=new Set(['dictation_start','dictation_stop','get_state','get_available_models','set_model','cycle_model','get_available_thinking_levels','set_thinking_level','set_fast_mode','set_slow_mode','set_auto_compaction','set_auto_retry','set_steering_mode','set_follow_up_mode','set_interrupt_mode','set_cache_warming','get_session_stats','get_tree','get_entries','get_subagents','get_subagent_messages','cancel_subagent','steer_subagent','get_available_commands','get_login_providers','login','get_logout_accounts','logout','set_session_name','new_session','fork','branch','navigate_tree','set_label','compact','abort','abort_retry','steer','follow_up','remove_queued_message','promote_queued_message','abort_and_restore_queue','get_btw_history','btw','btw_cancel','goal']);
 const transitions=new Set(['new_session','fork','branch','navigate_tree']);
 const emit=(res,e)=>res.write(`data: ${JSON.stringify(e)}\n\n`);
 function json(res,data,status=200){res.writeHead(status,{'Content-Type':'application/json'});res.end(JSON.stringify(data));}
@@ -74,7 +74,7 @@ async function api(path,data){
     if(!command||!rpcCommands.has(command.type))throw new Error('Unsupported workspace command.');
     if(c.initializing)throw new Error('OhMyPi is still loading this session.');
     if(transitions.has(command.type)&&c.busy)throw new Error('Stop the current turn before changing the conversation tree.');
-    const result=await c.request(command,command.type==='login'?300000:command.type==='compact'?180000:30000);
+    const result=await c.request(command,command.type.startsWith('dictation_')?600000:command.type==='login'?300000:command.type==='compact'?180000:30000);
     if(transitions.has(command.type)&&!result.cancelled)await c.hydrate();
     if(command.type.startsWith('set_')||['goal',...transitions].includes(command.type))await c.refresh();
     return result;
@@ -179,3 +179,4 @@ export function shutdown(){
 }
 export {server};
 process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);
+

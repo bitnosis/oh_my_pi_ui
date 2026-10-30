@@ -1,5 +1,6 @@
 import {applyBuiltInTheme, applyTheme, builtInThemes, defaultColor, setShowThemeBackgrounds} from "./theme.js";
 import {normalizeAppearance, readAppearance, writeAppearance} from "./agent-appearance.js";
+import {bundledAppearance} from "./robots.js";
 import {defaultPreferences, mergePreferences} from "./preferences-model.js";
 
 const initial = defaultPreferences();
@@ -138,8 +139,13 @@ export function setAgentColor(name, color) {
   patchPreferences({agents: {[name]: entry}});
 }
 
+export function setAgentIcon(name, icon) {
+  const entry = normalizeAppearance({...(preferences.agents[name] || {}), icon});
+  patchPreferences({agents: {[name]: entry}});
+}
+
 export function agentColor(name) {
-  return preferences.agents[name]?.color || "";
+  return preferences.agents[name]?.color || bundledAppearance(name)?.color || "";
 }
 
 export function appearanceFor(name) {

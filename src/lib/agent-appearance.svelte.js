@@ -1,1 +1,1 @@
-export {agentColor, appearanceFor, setAgentColor} from "./preferences.svelte.js";
+export {agentColor, appearanceFor, setAgentColor, setAgentIcon} from "./preferences.svelte.js";
